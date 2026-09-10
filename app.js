@@ -31,6 +31,7 @@ const COMMISSION_RATES = {
 const AUTHORIZED_USERS = {
   'jeff@atsmanufacture.com': 'admin',
   'matt@atsmanufacture.com': 'admin',
+  'michael@atsmanufacture.com': 'admin',
   'info@atsmanufacture.com': 'sales',
   'accountexecutive@atsmanufacture.com': 'sales',
   'accounting@atsmanufacture.com': 'accountant',
