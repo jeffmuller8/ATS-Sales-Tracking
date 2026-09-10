@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ATS Sales Tracking</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>ATS Sales Tracking</h1>
+      <div id="auth-section" class="auth-section">
+        <span id="user-info" class="user-info" style="display: none;"></span>
+        <span id="user-role" class="user-role" style="display: none;"></span>
+        <button id="sign-in-btn" class="auth-btn">Sign in with Google</button>
+        <button id="sign-out-btn" class="auth-btn sign-out" style="display: none;">Sign Out</button>
+      </div>
+    </header>
+
+    <main id="app-content" style="display: none;">
+      <!-- Dashboard -->
+      <section id="dashboard" class="dashboard">
+        <h2>Dashboard</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-label">Hours This Month</span>
+            <span class="stat-value" id="hours-month">0</span>
+            <span class="stat-sub" id="hours-earnings">$0.00</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Sales This Month</span>
+            <span class="stat-value" id="sales-month">0</span>
+            <span class="stat-sub" id="sales-gp">$0 GP</span>
+          </div>
+          <div class="stat-card highlight">
+            <span class="stat-label">Commissions Earned</span>
+            <span class="stat-value" id="commissions-earned">$0.00</span>
+            <span class="stat-sub">Paid invoices only</span>
+          </div>
+          <div class="stat-card pending">
+            <span class="stat-label">Pending Commissions</span>
+            <span class="stat-value" id="commissions-pending">$0.00</span>
+            <span class="stat-sub">Awaiting payment</span>
+          </div>
+          <div class="stat-card trail">
+            <span class="stat-label">Trailing Commissions</span>
+            <span class="stat-value" id="trailing-total">$0.00</span>
+            <span class="stat-sub">Future residuals</span>
+          </div>
+          <div class="stat-card total">
+            <span class="stat-label">Total Earnings (Month)</span>
+            <span class="stat-value" id="total-earnings">$0.00</span>
+            <span class="stat-sub">Hours + Commissions</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" data-tab="hours">Log Hours</button>
+        <button class="tab" data-tab="sales">Log Sale</button>
+        <button class="tab" data-tab="history">History</button>
+        <button class="tab" data-tab="trailing">Trailing</button>
+      </div>
+
+      <!-- Log Hours Tab -->
+      <section id="hours-tab" class="tab-content active">
+        <h2>Log Hours</h2>
+        <form id="hours-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="hours-date">Date</label>
+              <input type="date" id="hours-date" required>
+            </div>
+            <div class="form-group">
+              <label for="hours-amount">Hours</label>
+              <input type="number" id="hours-amount" step="0.25" min="0.25" required>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="hours-type">Work Type</label>
+            <select id="hours-type" required>
+              <option value="marketing">Marketing</option>
+              <option value="government-bid">Government Contracting Bid</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="hours-description">Description</label>
+            <textarea id="hours-description" rows="2" placeholder="What did you work on?"></textarea>
+          </div>
+          <button type="submit" class="btn-primary">Log Hours</button>
+        </form>
+      </section>
+
+      <!-- Log Sale Tab -->
+      <section id="sales-tab" class="tab-content">
+        <h2>Log Sale</h2>
+        <form id="sales-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sale-date">Sale Date</label>
+              <input type="date" id="sale-date" required>
+            </div>
+            <div class="form-group">
+              <label for="sale-customer">Customer Name</label>
+              <select id="sale-customer" required>
+                <option value="">-- Select or Add New --</option>
+                <option value="__new__">+ Add New Customer</option>
+              </select>
+              <input type="text" id="sale-customer-new" placeholder="Enter new company name" style="display: none; margin-top: 0.5rem;">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="sale-item">Item/Product</label>
+            <select id="sale-item" required>
+              <option value="">-- Select or Add New --</option>
+              <option value="__new__">+ Add New Product</option>
+            </select>
+            <input type="text" id="sale-item-new" placeholder="Enter new product name" style="display: none; margin-top: 0.5rem;">
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sale-units">Units</label>
+              <input type="number" id="sale-units" value="1" min="1" step="1" required>
+            </div>
+            <div class="form-group">
+              <label for="sale-unit-price">Unit Price ($)</label>
+              <input type="number" id="sale-unit-price" step="0.01" min="0" required>
+            </div>
+            <div class="form-group">
+              <label for="sale-unit-cost">Unit Cost ($)</label>
+              <input type="number" id="sale-unit-cost" step="0.01" min="0" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="sale-price">Total Price</label>
+              <input type="text" id="sale-price" readonly>
+            </div>
+            <div class="form-group">
+              <label for="sale-cost">Total Cost</label>
+              <input type="text" id="sale-cost" readonly>
+            </div>
+            <div class="form-group">
+              <label for="sale-gp">Gross Profit</label>
+              <input type="text" id="sale-gp" readonly>
+            </div>
+          </div>
+          <div class="form-row" id="account-type-row">
+            <div class="form-group">
+              <label for="sale-type">Account Type</label>
+              <select id="sale-type" required>
+                <option value="new-self">New Account (Self-Sourced)</option>
+                <option value="company-lead">Company-Provided Lead</option>
+                <option value="cross-sell">Cross-Sell (Existing Account)</option>
+              </select>
+            </div>
+            <div class="form-group" id="first-order-group">
+              <label for="sale-first-order">First Order?</label>
+              <select id="sale-first-order" required>
+                <option value="yes">Yes - First Order</option>
+                <option value="no">No - Reorder</option>
+              </select>
+            </div>
+          </div>
+          <div id="existing-customer-info" class="existing-customer-info" style="display: none;">
+            <span class="info-badge">Existing Customer</span>
+            <span id="trailing-countdown"></span>
+          </div>
+          <div class="form-group">
+            <label for="invoice-status">Invoice Status</label>
+            <select id="invoice-status" required>
+              <option value="pending">Pending Payment</option>
+              <option value="paid">Paid</option>
+            </select>
+          </div>
+          <div class="commission-preview">
+            <span class="preview-label">Estimated Commission:</span>
+            <span class="preview-value" id="commission-preview">$0.00</span>
+            <span class="preview-rate" id="commission-rate"></span>
+          </div>
+          <div class="form-group">
+            <label for="sale-notes">Notes</label>
+            <textarea id="sale-notes" rows="2" placeholder="Optional notes"></textarea>
+          </div>
+          <button type="submit" class="btn-primary">Log Sale</button>
+        </form>
+      </section>
+
+      <!-- History Tab -->
+      <section id="history-tab" class="tab-content">
+        <h2>History</h2>
+        <div class="filter-row">
+          <select id="history-filter">
+            <option value="all">All Entries</option>
+            <option value="hours">Hours Only</option>
+            <option value="sales">Sales Only</option>
+          </select>
+          <select id="history-month">
+            <option value="all">All Time</option>
+          </select>
+        </div>
+        <div id="history-list" class="history-list">
+          <p class="empty-state">No entries yet</p>
+        </div>
+      </section>
+
+      <!-- Trailing Commissions Tab -->
+      <section id="trailing-tab" class="tab-content">
+        <h2>Trailing Commissions</h2>
+        <p class="tab-description">Recurring commissions from past sales (reorders within trailing period)</p>
+        <div id="trailing-list" class="trailing-list">
+          <p class="empty-state">No trailing commissions yet</p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Accountant View (shown for accountant role) -->
+    <main id="accountant-content" style="display: none;">
+      <section class="dashboard">
+        <h2>Accountant View</h2>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-label">Total Hours (All Time)</span>
+            <span class="stat-value" id="acc-hours-total">0</span>
+            <span class="stat-sub" id="acc-hours-pay">$0.00</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Total Sales</span>
+            <span class="stat-value" id="acc-sales-total">0</span>
+            <span class="stat-sub" id="acc-sales-gp">$0 GP</span>
+          </div>
+          <div class="stat-card highlight">
+            <span class="stat-label">Commissions Owed</span>
+            <span class="stat-value" id="acc-commissions-owed">$0.00</span>
+            <span class="stat-sub">On paid invoices</span>
+          </div>
+          <div class="stat-card pending">
+            <span class="stat-label">Pending (Unpaid Invoices)</span>
+            <span class="stat-value" id="acc-commissions-pending">$0.00</span>
+            <span class="stat-sub">Not yet payable</span>
+          </div>
+        </div>
+      </section>
+
+      <h3>All Entries</h3>
+      <div class="filter-row">
+        <select id="acc-filter">
+          <option value="all">All Entries</option>
+          <option value="hours">Hours Only</option>
+          <option value="sales">Sales Only</option>
+          <option value="pending">Pending Invoices</option>
+        </select>
+        <button id="export-btn" class="btn-secondary">Export CSV</button>
+      </div>
+      <div id="acc-history-list" class="history-list">
+        <p class="empty-state">No entries yet</p>
+      </div>
+
+      <!-- Invoice Status Update (Accountant only) -->
+      <div id="invoice-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+          <h3>Update Invoice Status</h3>
+          <p id="modal-sale-info"></p>
+          <select id="modal-status">
+            <option value="pending">Pending Payment</option>
+            <option value="paid">Paid</option>
+            <option value="returned">Returned/Cancelled</option>
+          </select>
+          <div class="modal-actions">
+            <button id="modal-cancel" class="btn-secondary">Cancel</button>
+            <button id="modal-save" class="btn-primary">Save</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
