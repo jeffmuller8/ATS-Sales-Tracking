@@ -89,12 +89,9 @@ onAuthStateChanged(auth, (user) => {
     if (role === 'sales') {
       appContent.style.display = 'block';
       accountantContent.style.display = 'none';
-    } else if (role === 'admin') {
-      // Admin sees both views
-      appContent.style.display = 'block';
-      accountantContent.style.display = 'block';
     } else {
-      appContent.style.display = 'none';
+      // Admin and accountant see both views
+      appContent.style.display = 'block';
       accountantContent.style.display = 'block';
     }
 
