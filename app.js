@@ -738,6 +738,7 @@ document.getElementById('commission-filter')?.addEventListener('change', renderC
 // Table sorting state
 let invoiceSort = { column: 'date', direction: 'desc' };
 let commissionSort = { column: 'date', direction: 'desc' };
+let hoursSort = { column: 'date', direction: 'desc' };
 
 // Render Invoices Table
 function renderInvoicesTable() {
@@ -752,17 +753,32 @@ function renderInvoicesTable() {
     filtered = filtered.filter(s => s.invoiceStatus === filter);
   }
 
-  // Sort
+  // Sort - map data-sort values to actual field names
+  const invoiceFieldMap = {
+    date: 'date',
+    customer: 'customer',
+    item: 'item',
+    price: 'price',
+    gp: 'grossProfit',
+    so: 'salesOrder',
+    po: 'customerPO',
+    status: 'invoiceStatus'
+  };
+
   filtered = [...filtered].sort((a, b) => {
-    let aVal = a[invoiceSort.column] || '';
-    let bVal = b[invoiceSort.column] || '';
+    const field = invoiceFieldMap[invoiceSort.column] || invoiceSort.column;
+    let aVal = a[field] || '';
+    let bVal = b[field] || '';
 
     if (invoiceSort.column === 'date') {
       aVal = new Date(aVal);
       bVal = new Date(bVal);
-    } else if (invoiceSort.column === 'price' || invoiceSort.column === 'gp') {
-      aVal = invoiceSort.column === 'price' ? a.price : a.grossProfit;
-      bVal = invoiceSort.column === 'price' ? b.price : b.grossProfit;
+    } else if (typeof aVal === 'number') {
+      // Numeric comparison
+    } else {
+      // String comparison (case-insensitive)
+      aVal = String(aVal).toLowerCase();
+      bVal = String(bVal).toLowerCase();
     }
 
     if (aVal < bVal) return invoiceSort.direction === 'asc' ? -1 : 1;
@@ -805,17 +821,35 @@ function renderCommissionsTable() {
     filtered = filtered.filter(s => s.commissionPaid);
   }
 
-  // Sort
+  // Sort - map data-sort values to actual field names
+  const commissionFieldMap = {
+    date: 'date',
+    customer: 'customer',
+    item: 'item',
+    gp: 'grossProfit',
+    rate: 'commissionRate',
+    commission: 'commission',
+    invoiceStatus: 'invoiceStatus',
+    commissionPaid: 'commissionPaid'
+  };
+
   filtered = [...filtered].sort((a, b) => {
-    let aVal = a[commissionSort.column] || '';
-    let bVal = b[commissionSort.column] || '';
+    const field = commissionFieldMap[commissionSort.column] || commissionSort.column;
+    let aVal = a[field] || '';
+    let bVal = b[field] || '';
 
     if (commissionSort.column === 'date') {
       aVal = new Date(aVal);
       bVal = new Date(bVal);
-    } else if (commissionSort.column === 'commission' || commissionSort.column === 'gp') {
-      aVal = commissionSort.column === 'commission' ? a.commission : a.grossProfit;
-      bVal = commissionSort.column === 'commission' ? b.commission : b.grossProfit;
+    } else if (typeof aVal === 'number') {
+      // Numeric comparison
+    } else if (typeof aVal === 'boolean') {
+      aVal = aVal ? 1 : 0;
+      bVal = bVal ? 1 : 0;
+    } else {
+      // String comparison (case-insensitive)
+      aVal = String(aVal).toLowerCase();
+      bVal = String(bVal).toLowerCase();
     }
 
     if (aVal < bVal) return commissionSort.direction === 'asc' ? -1 : 1;
@@ -856,7 +890,37 @@ function renderHoursTable() {
     return;
   }
 
-  tbody.innerHTML = hoursEntries.map(h => `
+  // Sort - map data-sort values to actual field names
+  const hoursFieldMap = {
+    date: 'date',
+    type: 'type',
+    description: 'description',
+    hours: 'hours',
+    amount: 'hours' // Amount is hours * rate, we sort by hours
+  };
+
+  let sorted = [...hoursEntries].sort((a, b) => {
+    const field = hoursFieldMap[hoursSort.column] || hoursSort.column;
+    let aVal = a[field] || '';
+    let bVal = b[field] || '';
+
+    if (hoursSort.column === 'date') {
+      aVal = new Date(aVal);
+      bVal = new Date(bVal);
+    } else if (hoursSort.column === 'hours' || hoursSort.column === 'amount') {
+      aVal = hoursSort.column === 'amount' ? a.hours * a.rate : a.hours;
+      bVal = hoursSort.column === 'amount' ? b.hours * b.rate : b.hours;
+    } else {
+      aVal = String(aVal).toLowerCase();
+      bVal = String(bVal).toLowerCase();
+    }
+
+    if (aVal < bVal) return hoursSort.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return hoursSort.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  tbody.innerHTML = sorted.map(h => `
     <tr>
       <td>${formatDate(h.date)}</td>
       <td>${escapeHtml(h.type.replace('-', ' '))}</td>
@@ -895,6 +959,21 @@ document.querySelectorAll('#commissions-table th[data-sort]').forEach(th => {
     document.querySelectorAll('#commissions-table th').forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
     th.classList.add(commissionSort.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
     renderCommissionsTable();
+  });
+});
+
+document.querySelectorAll('#hours-table th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const column = th.dataset.sort;
+    if (hoursSort.column === column) {
+      hoursSort.direction = hoursSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      hoursSort.column = column;
+      hoursSort.direction = 'asc';
+    }
+    document.querySelectorAll('#hours-table th').forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+    th.classList.add(hoursSort.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    renderHoursTable();
   });
 });
 
