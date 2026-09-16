@@ -195,30 +195,39 @@
 
       <!-- History Tab -->
       <section id="history-tab" class="tab-content">
-        <h2>History</h2>
-        <div class="filter-row">
-          <select id="history-filter">
-            <option value="all">All Entries</option>
-            <option value="hours">Hours Only</option>
-            <option value="sales">Sales Only</option>
-          </select>
-          <select id="history-month">
-            <option value="all">All Time</option>
-          </select>
-        </div>
+        <h3>Sales History</h3>
         <div class="table-container">
-          <table id="history-table" class="data-table">
+          <table id="sales-history-table" class="data-table">
+            <thead>
+              <tr>
+                <th data-sort="date">Date</th>
+                <th data-sort="customer">Customer</th>
+                <th data-sort="item">Item</th>
+                <th data-sort="price">Price</th>
+                <th data-sort="gp">GP</th>
+                <th data-sort="commission">Commission</th>
+                <th data-sort="status">Status</th>
+              </tr>
+            </thead>
+            <tbody id="sales-history-tbody">
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style="margin-top: 2rem;">Hours History</h3>
+        <div class="table-container">
+          <table id="hours-history-table" class="data-table">
             <thead>
               <tr>
                 <th data-sort="date">Date</th>
                 <th data-sort="type">Type</th>
-                <th>Description</th>
-                <th>Amount</th>
-                <th>Earnings</th>
-                <th>Status</th>
+                <th data-sort="description">Description</th>
+                <th data-sort="hours">Hours</th>
+                <th data-sort="amount">Amount</th>
+                <th data-sort="status">Status</th>
               </tr>
             </thead>
-            <tbody id="history-tbody">
+            <tbody id="hours-history-tbody">
             </tbody>
           </table>
         </div>

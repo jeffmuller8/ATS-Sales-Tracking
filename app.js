@@ -596,100 +596,156 @@ function updateDashboard() {
   }
 }
 
-// Render history
-let historySort = { column: 'date', direction: 'desc' };
+// Render history (two separate tables for sales)
+let salesHistorySort = { column: 'date', direction: 'desc' };
+let hoursHistorySort = { column: 'date', direction: 'desc' };
 
 function renderHistory() {
   // Only render for sales role - admin/accountant use tables instead
   if (currentRole !== 'sales') return;
 
-  const filter = document.getElementById('history-filter')?.value || 'all';
-  const tbody = document.getElementById('history-tbody');
+  renderSalesHistoryTable();
+  renderHoursHistoryTable();
+}
+
+function renderSalesHistoryTable() {
+  const tbody = document.getElementById('sales-history-tbody');
   if (!tbody) return;
 
-  let items = [];
+  const fieldMap = {
+    date: 'date',
+    customer: 'customer',
+    item: 'item',
+    price: 'price',
+    gp: 'grossProfit',
+    commission: 'commission',
+    status: 'invoiceStatus'
+  };
 
-  if (filter === 'all' || filter === 'hours') {
-    items = items.concat(hoursEntries.map(h => ({ ...h, entryType: 'hours' })));
-  }
+  let sorted = [...salesEntries].sort((a, b) => {
+    const field = fieldMap[salesHistorySort.column] || salesHistorySort.column;
+    let aVal = a[field] || '';
+    let bVal = b[field] || '';
 
-  if (filter === 'all' || filter === 'sales' || filter === 'pending') {
-    let sales = salesEntries.map(s => ({ ...s, entryType: 'sale' }));
-    if (filter === 'pending') {
-      sales = sales.filter(s => s.invoiceStatus === 'pending');
-    }
-    items = items.concat(sales);
-  }
-
-  // Sort
-  items.sort((a, b) => {
-    let aVal, bVal;
-
-    if (historySort.column === 'date') {
-      aVal = new Date(a.date);
-      bVal = new Date(b.date);
-    } else if (historySort.column === 'type') {
-      aVal = a.entryType;
-      bVal = b.entryType;
+    if (salesHistorySort.column === 'date') {
+      aVal = new Date(aVal);
+      bVal = new Date(bVal);
+    } else if (typeof aVal === 'number') {
+      // numeric
     } else {
-      aVal = a[historySort.column] || '';
-      bVal = b[historySort.column] || '';
+      aVal = String(aVal).toLowerCase();
+      bVal = String(bVal).toLowerCase();
     }
 
-    if (aVal < bVal) return historySort.direction === 'asc' ? -1 : 1;
-    if (aVal > bVal) return historySort.direction === 'asc' ? 1 : -1;
+    if (aVal < bVal) return salesHistorySort.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return salesHistorySort.direction === 'asc' ? 1 : -1;
     return 0;
   });
 
-  if (items.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No entries found</td></tr>';
+  if (sorted.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No sales yet</td></tr>';
     return;
   }
 
-  tbody.innerHTML = items.map(item => {
-    if (item.entryType === 'hours') {
-      return `
-        <tr>
-          <td>${formatDate(item.date)}</td>
-          <td><span class="status-badge unpaid">Hours</span></td>
-          <td>${escapeHtml(item.type.replace('-', ' '))}${item.description ? ': ' + escapeHtml(item.description) : ''}</td>
-          <td>${item.hours}h</td>
-          <td>$${(item.hours * item.rate).toFixed(2)}</td>
-          <td><span class="status-badge ${item.approved ? 'paid' : 'pending'}">${item.approved ? 'Approved' : 'Pending'}</span></td>
-        </tr>
-      `;
-    } else {
-      const unitsDisplay = item.units && item.units > 1 ? `${item.units} × ` : '';
-      return `
-        <tr>
-          <td>${formatDate(item.date)}</td>
-          <td><span class="status-badge paid">Sale</span></td>
-          <td>
-            <strong>${escapeHtml(item.customer)}</strong><br>
-            <span style="font-size:0.8rem;color:#666;">${unitsDisplay}${escapeHtml(item.item)} · $${item.price.toFixed(2)}</span>
-          </td>
-          <td>$${item.grossProfit.toFixed(2)} GP</td>
-          <td style="color:#2e7d32;font-weight:600;">+$${item.commission.toFixed(2)}</td>
-          <td><span class="status-badge ${item.invoiceStatus}">${item.invoiceStatus}</span></td>
-        </tr>
-      `;
-    }
+  tbody.innerHTML = sorted.map(sale => {
+    const unitsDisplay = sale.units && sale.units > 1 ? `${sale.units} × ` : '';
+    return `
+      <tr>
+        <td>${formatDate(sale.date)}</td>
+        <td>${escapeHtml(sale.customer)}</td>
+        <td>${unitsDisplay}${escapeHtml(sale.item)}</td>
+        <td>$${sale.price.toFixed(2)}</td>
+        <td>$${sale.grossProfit.toFixed(2)}</td>
+        <td style="color:#2e7d32;font-weight:600;">+$${sale.commission.toFixed(2)}</td>
+        <td><span class="status-badge ${sale.invoiceStatus}">${sale.invoiceStatus}</span></td>
+      </tr>
+    `;
   }).join('');
 }
 
-// History table sorting
-document.querySelectorAll('#history-table th[data-sort]').forEach(th => {
+function renderHoursHistoryTable() {
+  const tbody = document.getElementById('hours-history-tbody');
+  if (!tbody) return;
+
+  const fieldMap = {
+    date: 'date',
+    type: 'type',
+    description: 'description',
+    hours: 'hours',
+    amount: 'hours',
+    status: 'approved'
+  };
+
+  let sorted = [...hoursEntries].sort((a, b) => {
+    const field = fieldMap[hoursHistorySort.column] || hoursHistorySort.column;
+    let aVal = a[field] || '';
+    let bVal = b[field] || '';
+
+    if (hoursHistorySort.column === 'date') {
+      aVal = new Date(aVal);
+      bVal = new Date(bVal);
+    } else if (hoursHistorySort.column === 'hours' || hoursHistorySort.column === 'amount') {
+      aVal = hoursHistorySort.column === 'amount' ? a.hours * a.rate : a.hours;
+      bVal = hoursHistorySort.column === 'amount' ? b.hours * b.rate : b.hours;
+    } else if (typeof aVal === 'boolean') {
+      aVal = aVal ? 1 : 0;
+      bVal = bVal ? 1 : 0;
+    } else {
+      aVal = String(aVal).toLowerCase();
+      bVal = String(bVal).toLowerCase();
+    }
+
+    if (aVal < bVal) return hoursHistorySort.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return hoursHistorySort.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  if (sorted.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No hours logged</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = sorted.map(h => `
+    <tr>
+      <td>${formatDate(h.date)}</td>
+      <td>${escapeHtml(h.type.replace('-', ' '))}</td>
+      <td>${escapeHtml(h.description || '-')}</td>
+      <td>${h.hours}h</td>
+      <td>$${(h.hours * h.rate).toFixed(2)}</td>
+      <td><span class="status-badge ${h.approved ? 'paid' : 'pending'}">${h.approved ? 'Approved' : 'Pending'}</span></td>
+    </tr>
+  `).join('');
+}
+
+// Sales history table sorting
+document.querySelectorAll('#sales-history-table th[data-sort]').forEach(th => {
   th.addEventListener('click', () => {
     const column = th.dataset.sort;
-    if (historySort.column === column) {
-      historySort.direction = historySort.direction === 'asc' ? 'desc' : 'asc';
+    if (salesHistorySort.column === column) {
+      salesHistorySort.direction = salesHistorySort.direction === 'asc' ? 'desc' : 'asc';
     } else {
-      historySort.column = column;
-      historySort.direction = 'asc';
+      salesHistorySort.column = column;
+      salesHistorySort.direction = 'asc';
     }
-    document.querySelectorAll('#history-table th').forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
-    th.classList.add(historySort.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
-    renderHistory();
+    document.querySelectorAll('#sales-history-table th').forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+    th.classList.add(salesHistorySort.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    renderSalesHistoryTable();
+  });
+});
+
+// Hours history table sorting
+document.querySelectorAll('#hours-history-table th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const column = th.dataset.sort;
+    if (hoursHistorySort.column === column) {
+      hoursHistorySort.direction = hoursHistorySort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      hoursHistorySort.column = column;
+      hoursHistorySort.direction = 'asc';
+    }
+    document.querySelectorAll('#hours-history-table th').forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+    th.classList.add(hoursHistorySort.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    renderHoursHistoryTable();
   });
 });
 
@@ -735,7 +791,6 @@ document.getElementById('export-btn')?.addEventListener('click', () => {
 });
 
 // Filter change listeners
-document.getElementById('history-filter')?.addEventListener('change', renderHistory);
 document.getElementById('hide-paid-invoices-toggle')?.addEventListener('change', renderInvoicesTable);
 document.getElementById('hide-paid-toggle')?.addEventListener('change', renderCommissionsTable);
 document.getElementById('hide-paid-hours-toggle')?.addEventListener('change', renderHoursTable);
