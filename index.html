@@ -256,12 +256,11 @@
       <!-- Customer Invoices Table -->
       <section id="invoices-tab" class="acc-tab-content active">
         <div class="filter-row">
-          <select id="invoice-filter">
-            <option value="all" selected>All Invoices</option>
-            <option value="pending">Pending Payment</option>
-            <option value="paid">Paid</option>
-            <option value="returned">Returned/Cancelled</option>
-          </select>
+          <label class="toggle-switch">
+            <input type="checkbox" id="hide-paid-invoices-toggle">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Hide paid invoices</span>
+          </label>
         </div>
         <div class="table-container">
           <table id="invoices-table" class="data-table">
@@ -275,7 +274,6 @@
                 <th data-sort="so">SO#</th>
                 <th data-sort="po">PO#</th>
                 <th data-sort="status">Invoice Status</th>
-                <th>Action</th>
               </tr>
             </thead>
             <tbody id="invoices-tbody">
@@ -333,22 +331,6 @@
         </div>
       </section>
 
-      <!-- Invoice Status Update Modal -->
-      <div id="invoice-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-          <h3>Update Invoice Status</h3>
-          <p id="modal-sale-info"></p>
-          <select id="modal-status">
-            <option value="pending">Pending Payment</option>
-            <option value="paid">Paid</option>
-            <option value="returned">Returned/Cancelled</option>
-          </select>
-          <div class="modal-actions">
-            <button id="modal-cancel" class="btn-secondary">Cancel</button>
-            <button id="modal-save" class="btn-primary">Save</button>
-          </div>
-        </div>
-      </div>
 
     </main>
   </div>

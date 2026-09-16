@@ -655,7 +655,6 @@ function renderHistory() {
             <div class="history-details">${getAccountTypeLabel(item.accountType)} · ${item.isFirstOrder ? 'First Order' : 'Reorder'}</div>
             ${orderNumbers}
             <span class="history-status ${item.invoiceStatus}">${item.invoiceStatus}</span>
-            ${currentRole === 'accountant' || currentRole === 'admin' ? `<button class="update-status-btn" onclick="openStatusModal('${item.id}')">Update Status</button>` : ''}
           </div>
           <div class="history-meta">
             <div class="history-amount commission">+$${item.commission.toFixed(2)}</div>
@@ -667,40 +666,18 @@ function renderHistory() {
   }).join('');
 }
 
-// Modal for updating invoice status (accountant only)
-let selectedSaleId = null;
-
-window.openStatusModal = function(saleId) {
-  selectedSaleId = saleId;
-  const sale = salesEntries.find(s => s.id === saleId);
-  if (!sale) return;
-
-  document.getElementById('modal-sale-info').textContent = `${sale.customer} - ${sale.item} ($${sale.price.toFixed(2)})`;
-  document.getElementById('modal-status').value = sale.invoiceStatus;
-  document.getElementById('invoice-modal').style.display = 'flex';
-};
-
-document.getElementById('modal-cancel')?.addEventListener('click', () => {
-  document.getElementById('invoice-modal').style.display = 'none';
-  selectedSaleId = null;
-});
-
-document.getElementById('modal-save')?.addEventListener('click', async () => {
-  if (!selectedSaleId) return;
-
-  const newStatus = document.getElementById('modal-status').value;
-
+// Inline invoice status update
+window.updateInvoiceStatus = async function(saleId, status) {
   try {
-    await updateDoc(doc(db, 'sales', selectedSaleId), {
-      invoiceStatus: newStatus
+    await updateDoc(doc(db, 'sales', saleId), {
+      invoiceStatus: status
     });
-    document.getElementById('invoice-modal').style.display = 'none';
-    selectedSaleId = null;
   } catch (error) {
-    console.error('Error updating status:', error);
-    alert('Error updating status. Please try again.');
+    console.error('Error updating invoice status:', error);
+    alert('Error updating. Please try again.');
+    renderInvoicesTable(); // Re-render to reset dropdown
   }
-});
+};
 
 // Export CSV (accountant)
 document.getElementById('export-btn')?.addEventListener('click', () => {
@@ -732,7 +709,7 @@ document.getElementById('export-btn')?.addEventListener('click', () => {
 
 // Filter change listeners
 document.getElementById('history-filter')?.addEventListener('change', renderHistory);
-document.getElementById('invoice-filter')?.addEventListener('change', renderInvoicesTable);
+document.getElementById('hide-paid-invoices-toggle')?.addEventListener('change', renderInvoicesTable);
 document.getElementById('hide-paid-toggle')?.addEventListener('change', renderCommissionsTable);
 
 // Table sorting state
@@ -745,12 +722,11 @@ function renderInvoicesTable() {
   const tbody = document.getElementById('invoices-tbody');
   if (!tbody) return;
 
-  const filterEl = document.getElementById('invoice-filter');
-  const filter = (filterEl && filterEl.value) ? filterEl.value : 'all';
+  const hidePaid = document.getElementById('hide-paid-invoices-toggle')?.checked || false;
 
   let filtered = [...salesEntries];
-  if (filter && filter !== 'all') {
-    filtered = filtered.filter(s => s.invoiceStatus === filter);
+  if (hidePaid) {
+    filtered = filtered.filter(s => s.invoiceStatus !== 'paid');
   }
 
   // Sort - map data-sort values to actual field names
@@ -787,7 +763,7 @@ function renderInvoicesTable() {
   });
 
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No invoices found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No invoices found</td></tr>';
     return;
   }
 
@@ -800,8 +776,13 @@ function renderInvoicesTable() {
       <td>$${sale.grossProfit.toFixed(2)}</td>
       <td>${escapeHtml(sale.salesOrder || '-')}</td>
       <td>${escapeHtml(sale.customerPO || '-')}</td>
-      <td><span class="status-badge ${sale.invoiceStatus}">${sale.invoiceStatus}</span></td>
-      <td><button class="btn-small" onclick="openStatusModal('${sale.id}')">Update</button></td>
+      <td>
+        <select class="inline-select ${sale.invoiceStatus === 'paid' ? 'paid' : ''}" onchange="updateInvoiceStatus('${sale.id}', this.value)">
+          <option value="pending" ${sale.invoiceStatus === 'pending' ? 'selected' : ''}>Pending</option>
+          <option value="paid" ${sale.invoiceStatus === 'paid' ? 'selected' : ''}>Paid</option>
+          <option value="returned" ${sale.invoiceStatus === 'returned' ? 'selected' : ''}>Returned</option>
+        </select>
+      </td>
     </tr>
   `).join('');
 }
