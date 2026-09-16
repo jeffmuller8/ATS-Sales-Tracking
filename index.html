@@ -43,11 +43,6 @@
             <span class="stat-value" id="commissions-pending">$0.00</span>
             <span class="stat-sub">Awaiting payment</span>
           </div>
-          <div class="stat-card trail">
-            <span class="stat-label">Trailing Commissions</span>
-            <span class="stat-value" id="trailing-total">$0.00</span>
-            <span class="stat-sub">Future residuals</span>
-          </div>
           <div class="stat-card total">
             <span class="stat-label">Total Earnings (Month)</span>
             <span class="stat-value" id="total-earnings">$0.00</span>
@@ -61,7 +56,6 @@
         <button class="tab active" data-tab="hours">Log Hours</button>
         <button class="tab" data-tab="sales">Log Sale</button>
         <button class="tab" data-tab="history">History</button>
-        <button class="tab" data-tab="trailing">Trailing</button>
       </div>
 
       <!-- Log Hours Tab -->
@@ -214,15 +208,6 @@
         </div>
         <div id="history-list" class="history-list">
           <p class="empty-state">No entries yet</p>
-        </div>
-      </section>
-
-      <!-- Trailing Commissions Tab -->
-      <section id="trailing-tab" class="tab-content">
-        <h2>Trailing Commissions</h2>
-        <p class="tab-description">Recurring commissions from past sales (reorders within trailing period)</p>
-        <div id="trailing-list" class="trailing-list">
-          <p class="empty-state">No trailing commissions yet</p>
         </div>
       </section>
     </main>

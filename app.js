@@ -129,7 +129,6 @@ function setupDataListeners() {
     updateProductDropdown();
     updateDashboard();
     renderHistory();
-    renderTrailing();
     renderInvoicesTable();
     renderCommissionsTable();
     renderHoursTable();
@@ -544,18 +543,14 @@ function updateDashboard() {
   const pendingSales = monthSales.filter(s => s.invoiceStatus === 'pending');
   const pendingCommissions = pendingSales.reduce((sum, s) => sum + s.commission, 0);
 
-  // Trailing commissions (from past sales, still in trailing period)
-  const trailingTotal = calculateTrailingCommissions();
-
   // Update DOM
-  if (currentRole === 'sales' || currentRole === 'admin') {
+  if (currentRole === 'sales') {
     document.getElementById('hours-month').textContent = totalHours.toFixed(1);
     document.getElementById('hours-earnings').textContent = `$${hoursEarnings.toFixed(2)}`;
     document.getElementById('sales-month').textContent = monthSales.length;
     document.getElementById('sales-gp').textContent = `$${totalGP.toFixed(2)} GP`;
     document.getElementById('commissions-earned').textContent = `$${earnedCommissions.toFixed(2)}`;
     document.getElementById('commissions-pending').textContent = `$${pendingCommissions.toFixed(2)}`;
-    document.getElementById('trailing-total').textContent = `$${trailingTotal.toFixed(2)}`;
     document.getElementById('total-earnings').textContent = `$${(hoursEarnings + earnedCommissions).toFixed(2)}`;
   }
   if (currentRole === 'accountant' || currentRole === 'admin') {
@@ -587,24 +582,6 @@ function updateDashboard() {
     document.getElementById('acc-commissions-pending').textContent = `$${pendingInvoiceCommissions.toFixed(2)}`;
     document.getElementById('acc-commissions-paid').textContent = `$${paidOutCommissions.toFixed(2)}`;
   }
-}
-
-// Calculate trailing commissions
-function calculateTrailingCommissions() {
-  const now = new Date();
-  let total = 0;
-
-  salesEntries.forEach(sale => {
-    if (sale.trailingExpires && sale.trailingRate > 0 && sale.invoiceStatus === 'paid') {
-      const expires = new Date(sale.trailingExpires);
-      if (expires > now) {
-        // This sale is still in its trailing period
-        total += sale.grossProfit * sale.trailingRate;
-      }
-    }
-  });
-
-  return total;
 }
 
 // Render history
@@ -671,49 +648,6 @@ function renderHistory() {
         </div>
       `;
     }
-  }).join('');
-}
-
-// Render trailing commissions
-function renderTrailing() {
-  const listEl = document.getElementById('trailing-list');
-  const now = new Date();
-
-  const trailingSales = salesEntries.filter(s =>
-    s.trailingExpires &&
-    s.trailingRate > 0 &&
-    new Date(s.trailingExpires) > now &&
-    s.invoiceStatus === 'paid'
-  );
-
-  if (trailingSales.length === 0) {
-    listEl.innerHTML = '<p class="empty-state">No active trailing commissions</p>';
-    return;
-  }
-
-  listEl.innerHTML = trailingSales.map(sale => {
-    const expires = new Date(sale.trailingExpires);
-    const daysLeft = Math.ceil((expires - now) / (1000 * 60 * 60 * 24));
-    const monthsLeft = getMonthsDiff(now, expires);
-
-    let countdownText;
-    if (monthsLeft > 0) {
-      countdownText = `${monthsLeft} month${monthsLeft !== 1 ? 's' : ''} remaining`;
-    } else {
-      countdownText = `${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`;
-    }
-
-    const urgencyClass = monthsLeft <= 1 ? 'expiring-soon' : (monthsLeft <= 3 ? 'expiring-medium' : '');
-
-    return `
-      <div class="trailing-item ${urgencyClass}">
-        <div class="trailing-customer">${escapeHtml(sale.customer)}</div>
-        <div class="trailing-details">${escapeHtml(sale.item)} · Original GP: $${sale.grossProfit.toFixed(2)}</div>
-        <div class="trailing-rate">Trailing rate: <strong>${(sale.trailingRate * 100).toFixed(0)}%</strong> = $${(sale.grossProfit * sale.trailingRate).toFixed(2)} per reorder</div>
-        <div class="trailing-countdown">${countdownText}</div>
-        <div class="trailing-expires">Expires: ${formatDate(sale.trailingExpires)}</div>
-      </div>
-    `;
   }).join('');
 }
 
