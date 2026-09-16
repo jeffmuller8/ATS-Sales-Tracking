@@ -728,11 +728,12 @@ function renderInvoicesTable() {
   const tbody = document.getElementById('invoices-tbody');
   if (!tbody) return;
 
-  const filter = document.getElementById('invoice-filter')?.value || 'all';
+  const filterEl = document.getElementById('invoice-filter');
+  const filter = (filterEl && filterEl.value) ? filterEl.value : 'all';
 
-  let filtered = salesEntries;
-  if (filter !== 'all') {
-    filtered = salesEntries.filter(s => s.invoiceStatus === filter);
+  let filtered = [...salesEntries];
+  if (filter && filter !== 'all') {
+    filtered = filtered.filter(s => s.invoiceStatus === filter);
   }
 
   // Sort
