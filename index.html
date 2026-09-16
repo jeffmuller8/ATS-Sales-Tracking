@@ -227,10 +227,10 @@
       </section>
     </main>
 
-    <!-- Accountant View (shown for accountant role) -->
+    <!-- Accountant/Admin View -->
     <main id="accountant-content" style="display: none;">
       <section class="dashboard">
-        <h2>Accountant View</h2>
+        <h2>Commission Dashboard</h2>
         <div class="stats-grid">
           <div class="stat-card">
             <span class="stat-label">Total Hours (All Time)</span>
@@ -243,33 +243,112 @@
             <span class="stat-sub" id="acc-sales-gp">$0 GP</span>
           </div>
           <div class="stat-card highlight">
-            <span class="stat-label">Commissions Owed</span>
+            <span class="stat-label">Commissions Unpaid</span>
             <span class="stat-value" id="acc-commissions-owed">$0.00</span>
-            <span class="stat-sub">On paid invoices</span>
+            <span class="stat-sub">Owed to sales</span>
           </div>
           <div class="stat-card pending">
-            <span class="stat-label">Pending (Unpaid Invoices)</span>
+            <span class="stat-label">Pending Invoices</span>
             <span class="stat-value" id="acc-commissions-pending">$0.00</span>
-            <span class="stat-sub">Not yet payable</span>
+            <span class="stat-sub">Awaiting customer payment</span>
+          </div>
+          <div class="stat-card paid-out">
+            <span class="stat-label">Commissions Paid Out</span>
+            <span class="stat-value" id="acc-commissions-paid">$0.00</span>
+            <span class="stat-sub">All time</span>
           </div>
         </div>
       </section>
 
-      <h3>All Entries</h3>
-      <div class="filter-row">
-        <select id="acc-filter">
-          <option value="all">All Entries</option>
-          <option value="hours">Hours Only</option>
-          <option value="sales">Sales Only</option>
-          <option value="pending">Pending Invoices</option>
-        </select>
-        <button id="export-btn" class="btn-secondary">Export CSV</button>
-      </div>
-      <div id="acc-history-list" class="history-list">
-        <p class="empty-state">No entries yet</p>
+      <!-- Tabs for the two tables -->
+      <div class="tabs acc-tabs">
+        <button class="tab active" data-acc-tab="invoices">Customer Invoices</button>
+        <button class="tab" data-acc-tab="commissions">Commission Payouts</button>
+        <button class="tab" data-acc-tab="hours">Hours Log</button>
+        <button id="export-btn" class="btn-secondary" style="margin-left: auto;">Export CSV</button>
       </div>
 
-      <!-- Invoice Status Update (Accountant only) -->
+      <!-- Customer Invoices Table -->
+      <section id="invoices-tab" class="acc-tab-content active">
+        <div class="filter-row">
+          <select id="invoice-filter">
+            <option value="all">All Invoices</option>
+            <option value="pending">Pending Payment</option>
+            <option value="paid">Paid</option>
+            <option value="returned">Returned/Cancelled</option>
+          </select>
+        </div>
+        <div class="table-container">
+          <table id="invoices-table" class="data-table">
+            <thead>
+              <tr>
+                <th data-sort="date">Date</th>
+                <th data-sort="customer">Customer</th>
+                <th data-sort="item">Item</th>
+                <th data-sort="price">Price</th>
+                <th data-sort="gp">GP</th>
+                <th data-sort="so">SO#</th>
+                <th data-sort="po">PO#</th>
+                <th data-sort="status">Invoice Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="invoices-tbody">
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Commission Payouts Table -->
+      <section id="commissions-tab" class="acc-tab-content">
+        <div class="filter-row">
+          <select id="commission-filter">
+            <option value="unpaid">Unpaid Commissions</option>
+            <option value="paid">Paid Commissions</option>
+            <option value="all">All Commissions</option>
+          </select>
+        </div>
+        <div class="table-container">
+          <table id="commissions-table" class="data-table">
+            <thead>
+              <tr>
+                <th data-sort="date">Sale Date</th>
+                <th data-sort="customer">Customer</th>
+                <th data-sort="item">Item</th>
+                <th data-sort="gp">GP</th>
+                <th data-sort="rate">Rate</th>
+                <th data-sort="commission">Commission</th>
+                <th data-sort="invoiceStatus">Invoice</th>
+                <th data-sort="commissionPaid">Paid to Sales</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="commissions-tbody">
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Hours Log Table -->
+      <section id="hours-log-tab" class="acc-tab-content">
+        <div class="table-container">
+          <table id="hours-table" class="data-table">
+            <thead>
+              <tr>
+                <th data-sort="date">Date</th>
+                <th data-sort="type">Type</th>
+                <th data-sort="description">Description</th>
+                <th data-sort="hours">Hours</th>
+                <th data-sort="amount">Amount</th>
+              </tr>
+            </thead>
+            <tbody id="hours-tbody">
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Invoice Status Update Modal -->
       <div id="invoice-modal" class="modal" style="display: none;">
         <div class="modal-content">
           <h3>Update Invoice Status</h3>
@@ -282,6 +361,22 @@
           <div class="modal-actions">
             <button id="modal-cancel" class="btn-secondary">Cancel</button>
             <button id="modal-save" class="btn-primary">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Commission Payout Modal -->
+      <div id="commission-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+          <h3>Mark Commission Paid</h3>
+          <p id="commission-modal-info"></p>
+          <div class="form-group">
+            <label for="commission-paid-date">Payment Date</label>
+            <input type="date" id="commission-paid-date">
+          </div>
+          <div class="modal-actions">
+            <button id="commission-modal-cancel" class="btn-secondary">Cancel</button>
+            <button id="commission-modal-save" class="btn-primary">Mark as Paid</button>
           </div>
         </div>
       </div>

@@ -90,8 +90,8 @@ onAuthStateChanged(auth, (user) => {
       appContent.style.display = 'block';
       accountantContent.style.display = 'none';
     } else {
-      // Admin and accountant see both views
-      appContent.style.display = 'block';
+      // Admin and accountant see only the accountant/commission view
+      appContent.style.display = 'none';
       accountantContent.style.display = 'block';
     }
 
@@ -118,6 +118,7 @@ function setupDataListeners() {
     hoursEntries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     updateDashboard();
     renderHistory();
+    renderHoursTable();
   });
 
   // Sales entries
@@ -129,17 +130,38 @@ function setupDataListeners() {
     updateDashboard();
     renderHistory();
     renderTrailing();
+    renderInvoicesTable();
+    renderCommissionsTable();
+    renderHoursTable();
   });
 }
 
-// Tab switching
-document.querySelectorAll('.tab').forEach(tab => {
+// Tab switching (sales view)
+document.querySelectorAll('.tab[data-tab]').forEach(tab => {
   tab.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
     tab.classList.add('active');
     document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+  });
+});
+
+// Tab switching (accountant view)
+document.querySelectorAll('.tab[data-acc-tab]').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab[data-acc-tab]').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.acc-tab-content').forEach(c => c.classList.remove('active'));
+
+    tab.classList.add('active');
+    const tabName = tab.dataset.accTab;
+    if (tabName === 'invoices') {
+      document.getElementById('invoices-tab').classList.add('active');
+    } else if (tabName === 'commissions') {
+      document.getElementById('commissions-tab').classList.add('active');
+    } else if (tabName === 'hours') {
+      document.getElementById('hours-log-tab').classList.add('active');
+    }
   });
 });
 
@@ -541,15 +563,29 @@ function updateDashboard() {
     const allHours = hoursEntries.reduce((sum, h) => sum + h.hours, 0);
     const allHoursPay = allHours * HOURLY_RATE;
     const allGP = salesEntries.reduce((sum, s) => sum + s.grossProfit, 0);
-    const allPaidCommissions = salesEntries.filter(s => s.invoiceStatus === 'paid').reduce((sum, s) => sum + s.commission, 0);
-    const allPendingCommissions = salesEntries.filter(s => s.invoiceStatus === 'pending').reduce((sum, s) => sum + s.commission, 0);
+
+    // Commissions unpaid = invoice paid by customer BUT not yet paid to sales person
+    const unpaidCommissions = salesEntries
+      .filter(s => s.invoiceStatus === 'paid' && !s.commissionPaid)
+      .reduce((sum, s) => sum + s.commission, 0);
+
+    // Pending = invoice not yet paid by customer
+    const pendingInvoiceCommissions = salesEntries
+      .filter(s => s.invoiceStatus === 'pending')
+      .reduce((sum, s) => sum + s.commission, 0);
+
+    // Paid out = commissions already paid to sales person
+    const paidOutCommissions = salesEntries
+      .filter(s => s.commissionPaid)
+      .reduce((sum, s) => sum + s.commission, 0);
 
     document.getElementById('acc-hours-total').textContent = allHours.toFixed(1);
     document.getElementById('acc-hours-pay').textContent = `$${allHoursPay.toFixed(2)}`;
     document.getElementById('acc-sales-total').textContent = salesEntries.length;
     document.getElementById('acc-sales-gp').textContent = `$${allGP.toFixed(2)} GP`;
-    document.getElementById('acc-commissions-owed').textContent = `$${allPaidCommissions.toFixed(2)}`;
-    document.getElementById('acc-commissions-pending').textContent = `$${allPendingCommissions.toFixed(2)}`;
+    document.getElementById('acc-commissions-owed').textContent = `$${unpaidCommissions.toFixed(2)}`;
+    document.getElementById('acc-commissions-pending').textContent = `$${pendingInvoiceCommissions.toFixed(2)}`;
+    document.getElementById('acc-commissions-paid').textContent = `$${paidOutCommissions.toFixed(2)}`;
   }
 }
 
@@ -746,7 +782,207 @@ document.getElementById('export-btn')?.addEventListener('click', () => {
 
 // Filter change listeners
 document.getElementById('history-filter')?.addEventListener('change', renderHistory);
-document.getElementById('acc-filter')?.addEventListener('change', renderHistory);
+document.getElementById('invoice-filter')?.addEventListener('change', renderInvoicesTable);
+document.getElementById('commission-filter')?.addEventListener('change', renderCommissionsTable);
+
+// Table sorting state
+let invoiceSort = { column: 'date', direction: 'desc' };
+let commissionSort = { column: 'date', direction: 'desc' };
+
+// Render Invoices Table
+function renderInvoicesTable() {
+  const tbody = document.getElementById('invoices-tbody');
+  if (!tbody) return;
+
+  const filter = document.getElementById('invoice-filter')?.value || 'all';
+
+  let filtered = salesEntries;
+  if (filter !== 'all') {
+    filtered = salesEntries.filter(s => s.invoiceStatus === filter);
+  }
+
+  // Sort
+  filtered = [...filtered].sort((a, b) => {
+    let aVal = a[invoiceSort.column] || '';
+    let bVal = b[invoiceSort.column] || '';
+
+    if (invoiceSort.column === 'date') {
+      aVal = new Date(aVal);
+      bVal = new Date(bVal);
+    } else if (invoiceSort.column === 'price' || invoiceSort.column === 'gp') {
+      aVal = invoiceSort.column === 'price' ? a.price : a.grossProfit;
+      bVal = invoiceSort.column === 'price' ? b.price : b.grossProfit;
+    }
+
+    if (aVal < bVal) return invoiceSort.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return invoiceSort.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No invoices found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(sale => `
+    <tr>
+      <td>${formatDate(sale.date)}</td>
+      <td>${escapeHtml(sale.customer)}</td>
+      <td>${sale.units > 1 ? sale.units + ' × ' : ''}${escapeHtml(sale.item)}</td>
+      <td>$${sale.price.toFixed(2)}</td>
+      <td>$${sale.grossProfit.toFixed(2)}</td>
+      <td>${escapeHtml(sale.salesOrder || '-')}</td>
+      <td>${escapeHtml(sale.customerPO || '-')}</td>
+      <td><span class="status-badge ${sale.invoiceStatus}">${sale.invoiceStatus}</span></td>
+      <td><button class="btn-small" onclick="openStatusModal('${sale.id}')">Update</button></td>
+    </tr>
+  `).join('');
+}
+
+// Render Commissions Table
+function renderCommissionsTable() {
+  const tbody = document.getElementById('commissions-tbody');
+  if (!tbody) return;
+
+  const filter = document.getElementById('commission-filter')?.value || 'unpaid';
+
+  let filtered = salesEntries.filter(s => s.invoiceStatus === 'paid'); // Only show paid invoices
+
+  if (filter === 'unpaid') {
+    filtered = filtered.filter(s => !s.commissionPaid);
+  } else if (filter === 'paid') {
+    filtered = filtered.filter(s => s.commissionPaid);
+  }
+
+  // Sort
+  filtered = [...filtered].sort((a, b) => {
+    let aVal = a[commissionSort.column] || '';
+    let bVal = b[commissionSort.column] || '';
+
+    if (commissionSort.column === 'date') {
+      aVal = new Date(aVal);
+      bVal = new Date(bVal);
+    } else if (commissionSort.column === 'commission' || commissionSort.column === 'gp') {
+      aVal = commissionSort.column === 'commission' ? a.commission : a.grossProfit;
+      bVal = commissionSort.column === 'commission' ? b.commission : b.grossProfit;
+    }
+
+    if (aVal < bVal) return commissionSort.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return commissionSort.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No commissions found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(sale => `
+    <tr>
+      <td>${formatDate(sale.date)}</td>
+      <td>${escapeHtml(sale.customer)}</td>
+      <td>${escapeHtml(sale.item)}</td>
+      <td>$${sale.grossProfit.toFixed(2)}</td>
+      <td>${(sale.commissionRate * 100).toFixed(0)}%</td>
+      <td>$${sale.commission.toFixed(2)}</td>
+      <td><span class="status-badge paid">Paid</span></td>
+      <td><span class="status-badge ${sale.commissionPaid ? 'paid' : 'unpaid'}">${sale.commissionPaid ? 'Paid' : 'Unpaid'}</span></td>
+      <td>${sale.commissionPaid
+        ? `<span style="font-size:0.75rem;color:#666;">${formatDate(sale.commissionPaidDate)}</span>`
+        : `<button class="btn-small btn-success" onclick="openCommissionModal('${sale.id}')">Mark Paid</button>`
+      }</td>
+    </tr>
+  `).join('');
+}
+
+// Render Hours Table
+function renderHoursTable() {
+  const tbody = document.getElementById('hours-tbody');
+  if (!tbody) return;
+
+  if (hoursEntries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No hours logged</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = hoursEntries.map(h => `
+    <tr>
+      <td>${formatDate(h.date)}</td>
+      <td>${escapeHtml(h.type.replace('-', ' '))}</td>
+      <td>${escapeHtml(h.description || '-')}</td>
+      <td>${h.hours}h</td>
+      <td>$${(h.hours * h.rate).toFixed(2)}</td>
+    </tr>
+  `).join('');
+}
+
+// Table header sorting
+document.querySelectorAll('#invoices-table th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const column = th.dataset.sort;
+    if (invoiceSort.column === column) {
+      invoiceSort.direction = invoiceSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      invoiceSort.column = column;
+      invoiceSort.direction = 'asc';
+    }
+    document.querySelectorAll('#invoices-table th').forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+    th.classList.add(invoiceSort.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    renderInvoicesTable();
+  });
+});
+
+document.querySelectorAll('#commissions-table th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const column = th.dataset.sort;
+    if (commissionSort.column === column) {
+      commissionSort.direction = commissionSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      commissionSort.column = column;
+      commissionSort.direction = 'asc';
+    }
+    document.querySelectorAll('#commissions-table th').forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+    th.classList.add(commissionSort.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    renderCommissionsTable();
+  });
+});
+
+// Commission payout modal
+let selectedCommissionId = null;
+
+window.openCommissionModal = function(saleId) {
+  selectedCommissionId = saleId;
+  const sale = salesEntries.find(s => s.id === saleId);
+  if (!sale) return;
+
+  document.getElementById('commission-modal-info').textContent =
+    `${sale.customer} - ${sale.item} | Commission: $${sale.commission.toFixed(2)}`;
+  document.getElementById('commission-paid-date').valueAsDate = new Date();
+  document.getElementById('commission-modal').style.display = 'flex';
+};
+
+document.getElementById('commission-modal-cancel')?.addEventListener('click', () => {
+  document.getElementById('commission-modal').style.display = 'none';
+  selectedCommissionId = null;
+});
+
+document.getElementById('commission-modal-save')?.addEventListener('click', async () => {
+  if (!selectedCommissionId) return;
+
+  const paidDate = document.getElementById('commission-paid-date').value;
+
+  try {
+    await updateDoc(doc(db, 'sales', selectedCommissionId), {
+      commissionPaid: true,
+      commissionPaidDate: paidDate
+    });
+    document.getElementById('commission-modal').style.display = 'none';
+    selectedCommissionId = null;
+  } catch (error) {
+    console.error('Error marking commission paid:', error);
+    alert('Error updating. Please try again.');
+  }
+});
 
 // Utility functions
 function escapeHtml(text) {
