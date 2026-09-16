@@ -623,6 +623,11 @@ function renderSalesHistoryTable() {
   };
 
   let sorted = [...salesEntries].sort((a, b) => {
+    // Pending first by default
+    const aIsPending = a.invoiceStatus === 'pending' ? 0 : 1;
+    const bIsPending = b.invoiceStatus === 'pending' ? 0 : 1;
+    if (aIsPending !== bIsPending) return aIsPending - bIsPending;
+
     const field = fieldMap[salesHistorySort.column] || salesHistorySort.column;
     let aVal = a[field] || '';
     let bVal = b[field] || '';
@@ -677,6 +682,11 @@ function renderHoursHistoryTable() {
   };
 
   let sorted = [...hoursEntries].sort((a, b) => {
+    // Unapproved (pending) first by default
+    const aIsPending = !a.approved ? 0 : 1;
+    const bIsPending = !b.approved ? 0 : 1;
+    if (aIsPending !== bIsPending) return aIsPending - bIsPending;
+
     const field = fieldMap[hoursHistorySort.column] || hoursHistorySort.column;
     let aVal = a[field] || '';
     let bVal = b[field] || '';
@@ -825,6 +835,11 @@ function renderInvoicesTable() {
   };
 
   filtered = [...filtered].sort((a, b) => {
+    // Pending first by default
+    const aIsPending = a.invoiceStatus === 'pending' ? 0 : 1;
+    const bIsPending = b.invoiceStatus === 'pending' ? 0 : 1;
+    if (aIsPending !== bIsPending) return aIsPending - bIsPending;
+
     const field = invoiceFieldMap[invoiceSort.column] || invoiceSort.column;
     let aVal = a[field] || '';
     let bVal = b[field] || '';
@@ -896,6 +911,11 @@ function renderCommissionsTable() {
   };
 
   filtered = [...filtered].sort((a, b) => {
+    // Unpaid commissions first by default
+    const aIsUnpaid = !a.commissionPaid ? 0 : 1;
+    const bIsUnpaid = !b.commissionPaid ? 0 : 1;
+    if (aIsUnpaid !== bIsUnpaid) return aIsUnpaid - bIsUnpaid;
+
     const field = commissionFieldMap[commissionSort.column] || commissionSort.column;
     let aVal = a[field] || '';
     let bVal = b[field] || '';
@@ -977,6 +997,11 @@ function renderHoursTable() {
   };
 
   let sorted = [...filtered].sort((a, b) => {
+    // Unapproved (pending) first by default
+    const aIsPending = !a.approved ? 0 : 1;
+    const bIsPending = !b.approved ? 0 : 1;
+    if (aIsPending !== bIsPending) return aIsPending - bIsPending;
+
     const field = hoursFieldMap[hoursSort.column] || hoursSort.column;
     let aVal = a[field] || '';
     let bVal = b[field] || '';
