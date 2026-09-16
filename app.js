@@ -733,7 +733,7 @@ document.getElementById('export-btn')?.addEventListener('click', () => {
 // Filter change listeners
 document.getElementById('history-filter')?.addEventListener('change', renderHistory);
 document.getElementById('invoice-filter')?.addEventListener('change', renderInvoicesTable);
-document.getElementById('commission-filter')?.addEventListener('change', renderCommissionsTable);
+document.getElementById('hide-paid-toggle')?.addEventListener('change', renderCommissionsTable);
 
 // Table sorting state
 let invoiceSort = { column: 'date', direction: 'desc' };
@@ -811,14 +811,12 @@ function renderCommissionsTable() {
   const tbody = document.getElementById('commissions-tbody');
   if (!tbody) return;
 
-  const filter = document.getElementById('commission-filter')?.value || 'unpaid';
+  const hidePaid = document.getElementById('hide-paid-toggle')?.checked || false;
 
   let filtered = salesEntries.filter(s => s.invoiceStatus === 'paid'); // Only show paid invoices
 
-  if (filter === 'unpaid') {
+  if (hidePaid) {
     filtered = filtered.filter(s => !s.commissionPaid);
-  } else if (filter === 'paid') {
-    filtered = filtered.filter(s => s.commissionPaid);
   }
 
   // Sort - map data-sort values to actual field names
@@ -871,10 +869,15 @@ function renderCommissionsTable() {
       <td>${(sale.commissionRate * 100).toFixed(0)}%</td>
       <td>$${sale.commission.toFixed(2)}</td>
       <td><span class="status-badge paid">Paid</span></td>
-      <td><span class="status-badge ${sale.commissionPaid ? 'paid' : 'unpaid'}">${sale.commissionPaid ? 'Paid' : 'Unpaid'}</span></td>
-      <td>${sale.commissionPaid
+      <td>
+        <select class="inline-select ${sale.commissionPaid ? 'paid' : ''}" onchange="updateCommissionStatus('${sale.id}', this.value)">
+          <option value="unpaid" ${!sale.commissionPaid ? 'selected' : ''}>Unpaid</option>
+          <option value="paid" ${sale.commissionPaid ? 'selected' : ''}>Paid</option>
+        </select>
+      </td>
+      <td>${sale.commissionPaid && sale.commissionPaidDate
         ? `<span style="font-size:0.75rem;color:#666;">${formatDate(sale.commissionPaidDate)}</span>`
-        : `<button class="btn-small btn-success" onclick="openCommissionModal('${sale.id}')">Mark Paid</button>`
+        : '-'
       }</td>
     </tr>
   `).join('');
@@ -977,42 +980,20 @@ document.querySelectorAll('#hours-table th[data-sort]').forEach(th => {
   });
 });
 
-// Commission payout modal
-let selectedCommissionId = null;
-
-window.openCommissionModal = function(saleId) {
-  selectedCommissionId = saleId;
-  const sale = salesEntries.find(s => s.id === saleId);
-  if (!sale) return;
-
-  document.getElementById('commission-modal-info').textContent =
-    `${sale.customer} - ${sale.item} | Commission: $${sale.commission.toFixed(2)}`;
-  document.getElementById('commission-paid-date').valueAsDate = new Date();
-  document.getElementById('commission-modal').style.display = 'flex';
-};
-
-document.getElementById('commission-modal-cancel')?.addEventListener('click', () => {
-  document.getElementById('commission-modal').style.display = 'none';
-  selectedCommissionId = null;
-});
-
-document.getElementById('commission-modal-save')?.addEventListener('click', async () => {
-  if (!selectedCommissionId) return;
-
-  const paidDate = document.getElementById('commission-paid-date').value;
-
+// Inline commission status update
+window.updateCommissionStatus = async function(saleId, status) {
   try {
-    await updateDoc(doc(db, 'sales', selectedCommissionId), {
-      commissionPaid: true,
-      commissionPaidDate: paidDate
-    });
-    document.getElementById('commission-modal').style.display = 'none';
-    selectedCommissionId = null;
+    const updates = {
+      commissionPaid: status === 'paid',
+      commissionPaidDate: status === 'paid' ? new Date().toISOString().split('T')[0] : null
+    };
+    await updateDoc(doc(db, 'sales', saleId), updates);
   } catch (error) {
-    console.error('Error marking commission paid:', error);
+    console.error('Error updating commission status:', error);
     alert('Error updating. Please try again.');
+    renderCommissionsTable(); // Re-render to reset dropdown
   }
-});
+};
 
 // Utility functions
 function escapeHtml(text) {

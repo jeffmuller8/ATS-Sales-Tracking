@@ -287,11 +287,11 @@
       <!-- Commission Payouts Table -->
       <section id="commissions-tab" class="acc-tab-content">
         <div class="filter-row">
-          <select id="commission-filter">
-            <option value="unpaid">Unpaid Commissions</option>
-            <option value="paid">Paid Commissions</option>
-            <option value="all">All Commissions</option>
-          </select>
+          <label class="toggle-switch">
+            <input type="checkbox" id="hide-paid-toggle">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Hide paid commissions</span>
+          </label>
         </div>
         <div class="table-container">
           <table id="commissions-table" class="data-table">
@@ -350,21 +350,6 @@
         </div>
       </div>
 
-      <!-- Commission Payout Modal -->
-      <div id="commission-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-          <h3>Mark Commission Paid</h3>
-          <p id="commission-modal-info"></p>
-          <div class="form-group">
-            <label for="commission-paid-date">Payment Date</label>
-            <input type="date" id="commission-paid-date">
-          </div>
-          <div class="modal-actions">
-            <button id="commission-modal-cancel" class="btn-secondary">Cancel</button>
-            <button id="commission-modal-save" class="btn-primary">Mark as Paid</button>
-          </div>
-        </div>
-      </div>
     </main>
   </div>
 
