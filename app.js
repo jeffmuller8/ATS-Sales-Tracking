@@ -598,8 +598,12 @@ function updateDashboard() {
 
 // Render history
 function renderHistory() {
-  const filter = document.getElementById(currentRole === 'sales' ? 'history-filter' : 'acc-filter')?.value || 'all';
-  const listEl = document.getElementById(currentRole === 'sales' ? 'history-list' : 'acc-history-list');
+  // Only render for sales role - admin/accountant use tables instead
+  if (currentRole !== 'sales') return;
+
+  const filter = document.getElementById('history-filter')?.value || 'all';
+  const listEl = document.getElementById('history-list');
+  if (!listEl) return;
 
   let items = [];
 
@@ -738,15 +742,10 @@ let commissionSort = { column: 'date', direction: 'desc' };
 // Render Invoices Table
 function renderInvoicesTable() {
   const tbody = document.getElementById('invoices-tbody');
-  if (!tbody) {
-    console.log('invoices-tbody not found');
-    return;
-  }
+  if (!tbody) return;
 
   const filterEl = document.getElementById('invoice-filter');
   const filter = (filterEl && filterEl.value) ? filterEl.value : 'all';
-
-  console.log('Rendering invoices table, filter:', filter, 'salesEntries:', salesEntries.length);
 
   let filtered = [...salesEntries];
   if (filter && filter !== 'all') {
