@@ -711,6 +711,7 @@ document.getElementById('export-btn')?.addEventListener('click', () => {
 document.getElementById('history-filter')?.addEventListener('change', renderHistory);
 document.getElementById('hide-paid-invoices-toggle')?.addEventListener('change', renderInvoicesTable);
 document.getElementById('hide-paid-toggle')?.addEventListener('change', renderCommissionsTable);
+document.getElementById('hide-paid-hours-toggle')?.addEventListener('change', renderHoursTable);
 
 // Table sorting state
 let invoiceSort = { column: 'date', direction: 'desc' };
@@ -869,8 +870,16 @@ function renderHoursTable() {
   const tbody = document.getElementById('hours-tbody');
   if (!tbody) return;
 
-  if (hoursEntries.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No hours logged</td></tr>';
+  const hidePaid = document.getElementById('hide-paid-hours-toggle')?.checked || false;
+  const canApprove = currentUser && (currentUser.email === 'jeff@atsmanufacture.com' || currentUser.email === 'matt@atsmanufacture.com');
+
+  let filtered = [...hoursEntries];
+  if (hidePaid) {
+    filtered = filtered.filter(h => !h.hoursPaid);
+  }
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hours logged</td></tr>';
     return;
   }
 
@@ -880,10 +889,12 @@ function renderHoursTable() {
     type: 'type',
     description: 'description',
     hours: 'hours',
-    amount: 'hours' // Amount is hours * rate, we sort by hours
+    amount: 'hours',
+    approved: 'approved',
+    hoursPaid: 'hoursPaid'
   };
 
-  let sorted = [...hoursEntries].sort((a, b) => {
+  let sorted = [...filtered].sort((a, b) => {
     const field = hoursFieldMap[hoursSort.column] || hoursSort.column;
     let aVal = a[field] || '';
     let bVal = b[field] || '';
@@ -894,6 +905,9 @@ function renderHoursTable() {
     } else if (hoursSort.column === 'hours' || hoursSort.column === 'amount') {
       aVal = hoursSort.column === 'amount' ? a.hours * a.rate : a.hours;
       bVal = hoursSort.column === 'amount' ? b.hours * b.rate : b.hours;
+    } else if (typeof aVal === 'boolean') {
+      aVal = aVal ? 1 : 0;
+      bVal = bVal ? 1 : 0;
     } else {
       aVal = String(aVal).toLowerCase();
       bVal = String(bVal).toLowerCase();
@@ -911,6 +925,22 @@ function renderHoursTable() {
       <td>${escapeHtml(h.description || '-')}</td>
       <td>${h.hours}h</td>
       <td>$${(h.hours * h.rate).toFixed(2)}</td>
+      <td>
+        ${canApprove
+          ? `<select class="inline-select ${h.approved ? 'paid' : ''}" onchange="updateHoursApproval('${h.id}', this.value)">
+              <option value="no" ${!h.approved ? 'selected' : ''}>No</option>
+              <option value="yes" ${h.approved ? 'selected' : ''}>Yes</option>
+            </select>`
+          : `<span class="status-badge ${h.approved ? 'paid' : 'pending'}">${h.approved ? 'Yes' : 'No'}</span>`
+        }
+      </td>
+      <td>
+        <select class="inline-select ${h.hoursPaid ? 'paid' : ''}" onchange="updateHoursPaid('${h.id}', this.value)" ${!h.approved ? 'disabled' : ''}>
+          <option value="no" ${!h.hoursPaid ? 'selected' : ''}>Unpaid</option>
+          <option value="yes" ${h.hoursPaid ? 'selected' : ''}>Paid</option>
+        </select>
+      </td>
+      <td>${h.hoursPaid && h.hoursPaidDate ? formatDate(h.hoursPaidDate) : '-'}</td>
     </tr>
   `).join('');
 }
@@ -973,6 +1003,42 @@ window.updateCommissionStatus = async function(saleId, status) {
     console.error('Error updating commission status:', error);
     alert('Error updating. Please try again.');
     renderCommissionsTable(); // Re-render to reset dropdown
+  }
+};
+
+// Hours approval update (only Jeff or Matt can approve)
+window.updateHoursApproval = async function(hoursId, value) {
+  const canApprove = currentUser && (currentUser.email === 'jeff@atsmanufacture.com' || currentUser.email === 'matt@atsmanufacture.com');
+  if (!canApprove) {
+    alert('Only Jeff or Matt can approve hours.');
+    renderHoursTable();
+    return;
+  }
+
+  try {
+    await updateDoc(doc(db, 'hours', hoursId), {
+      approved: value === 'yes',
+      approvedBy: value === 'yes' ? currentUser.email : null,
+      approvedDate: value === 'yes' ? new Date().toISOString().split('T')[0] : null
+    });
+  } catch (error) {
+    console.error('Error updating hours approval:', error);
+    alert('Error updating. Please try again.');
+    renderHoursTable();
+  }
+};
+
+// Hours paid status update
+window.updateHoursPaid = async function(hoursId, value) {
+  try {
+    await updateDoc(doc(db, 'hours', hoursId), {
+      hoursPaid: value === 'yes',
+      hoursPaidDate: value === 'yes' ? new Date().toISOString().split('T')[0] : null
+    });
+  } catch (error) {
+    console.error('Error updating hours paid status:', error);
+    alert('Error updating. Please try again.');
+    renderHoursTable();
   }
 };
 

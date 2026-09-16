@@ -314,6 +314,13 @@
 
       <!-- Hours Log Table -->
       <section id="hours-log-tab" class="acc-tab-content">
+        <div class="filter-row">
+          <label class="toggle-switch">
+            <input type="checkbox" id="hide-paid-hours-toggle">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Hide paid hours</span>
+          </label>
+        </div>
         <div class="table-container">
           <table id="hours-table" class="data-table">
             <thead>
@@ -323,6 +330,9 @@
                 <th data-sort="description">Description</th>
                 <th data-sort="hours">Hours</th>
                 <th data-sort="amount">Amount</th>
+                <th data-sort="approved">Approved</th>
+                <th data-sort="hoursPaid">Paid</th>
+                <th>Paid Date</th>
               </tr>
             </thead>
             <tbody id="hours-tbody">
