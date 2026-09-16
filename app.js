@@ -453,6 +453,8 @@ document.getElementById('sales-form').addEventListener('submit', async (e) => {
     accountType: type,
     isFirstOrder: isFirstOrder,
     invoiceStatus: document.getElementById('invoice-status').value,
+    salesOrder: document.getElementById('sale-so').value.trim(),
+    customerPO: document.getElementById('sale-po').value.trim(),
     commissionRate: commissionRateValue,
     commission: commission,
     trailingRate: isFirstOrder ? rates.trailing : 0,
@@ -613,12 +615,16 @@ function renderHistory() {
     } else {
       const statusClass = item.invoiceStatus === 'returned' ? 'returned' : (item.invoiceStatus === 'pending' ? 'pending-invoice' : '');
       const unitsDisplay = item.units && item.units > 1 ? `${item.units} × ` : '';
+      const orderNumbers = (item.salesOrder || item.customerPO)
+        ? `<div class="history-details order-numbers">${item.salesOrder ? `SO#: ${escapeHtml(item.salesOrder)}` : ''}${item.salesOrder && item.customerPO ? ' · ' : ''}${item.customerPO ? `PO#: ${escapeHtml(item.customerPO)}` : ''}</div>`
+        : '';
       return `
         <div class="history-item sale ${statusClass}">
           <div class="history-info">
             <div class="history-title">${escapeHtml(item.customer)}</div>
             <div class="history-details">${unitsDisplay}${escapeHtml(item.item)} · $${item.price.toFixed(2)} (GP: $${item.grossProfit.toFixed(2)})</div>
             <div class="history-details">${getAccountTypeLabel(item.accountType)} · ${item.isFirstOrder ? 'First Order' : 'Reorder'}</div>
+            ${orderNumbers}
             <span class="history-status ${item.invoiceStatus}">${item.invoiceStatus}</span>
             ${currentRole === 'accountant' || currentRole === 'admin' ? `<button class="update-status-btn" onclick="openStatusModal('${item.id}')">Update Status</button>` : ''}
           </div>
@@ -712,7 +718,7 @@ document.getElementById('modal-save')?.addEventListener('click', async () => {
 
 // Export CSV (accountant)
 document.getElementById('export-btn')?.addEventListener('click', () => {
-  let csv = 'Date,Type,Description,Hours,Rate,Amount,Customer,Item,Units,Unit Price,Unit Cost,Total Price,Total Cost,GP,Commission,Invoice Status\n';
+  let csv = 'Date,Type,Description,Hours,Rate,Amount,Customer,Item,Units,Unit Price,Unit Cost,Total Price,Total Cost,GP,Commission,Invoice Status,SO#,Customer PO#\n';
 
   const allItems = [
     ...hoursEntries.map(h => ({ ...h, entryType: 'hours' })),
@@ -721,12 +727,12 @@ document.getElementById('export-btn')?.addEventListener('click', () => {
 
   allItems.forEach(item => {
     if (item.entryType === 'hours') {
-      csv += `${item.date},Hours,"${item.description || ''}",${item.hours},${item.rate},${(item.hours * item.rate).toFixed(2)},,,,,,,,,,\n`;
+      csv += `${item.date},Hours,"${item.description || ''}",${item.hours},${item.rate},${(item.hours * item.rate).toFixed(2)},,,,,,,,,,,\n`;
     } else {
       const units = item.units || 1;
       const unitPrice = item.unitPrice || item.price;
       const unitCost = item.unitCost || item.cost;
-      csv += `${item.date},Sale,,,,,"${item.customer}","${item.item}",${units},${unitPrice},${unitCost},${item.price},${item.cost},${item.grossProfit},${item.commission},${item.invoiceStatus}\n`;
+      csv += `${item.date},Sale,,,,,"${item.customer}","${item.item}",${units},${unitPrice},${unitCost},${item.price},${item.cost},${item.grossProfit},${item.commission},${item.invoiceStatus},"${item.salesOrder || ''}","${item.customerPO || ''}"\n`;
     }
   });
 

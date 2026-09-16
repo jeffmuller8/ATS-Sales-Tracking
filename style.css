@@ -561,6 +561,11 @@ input[readonly] {
   font-style: italic;
 }
 
+.order-numbers {
+  font-family: monospace;
+  color: #1565c0;
+}
+
 /* Modal */
 .modal {
   position: fixed;
