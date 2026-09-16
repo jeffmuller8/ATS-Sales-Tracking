@@ -597,13 +597,15 @@ function updateDashboard() {
 }
 
 // Render history
+let historySort = { column: 'date', direction: 'desc' };
+
 function renderHistory() {
   // Only render for sales role - admin/accountant use tables instead
   if (currentRole !== 'sales') return;
 
   const filter = document.getElementById('history-filter')?.value || 'all';
-  const listEl = document.getElementById('history-list');
-  if (!listEl) return;
+  const tbody = document.getElementById('history-tbody');
+  if (!tbody) return;
 
   let items = [];
 
@@ -619,52 +621,77 @@ function renderHistory() {
     items = items.concat(sales);
   }
 
-  // Sort by date descending
-  items.sort((a, b) => new Date(b.date) - new Date(a.date));
+  // Sort
+  items.sort((a, b) => {
+    let aVal, bVal;
+
+    if (historySort.column === 'date') {
+      aVal = new Date(a.date);
+      bVal = new Date(b.date);
+    } else if (historySort.column === 'type') {
+      aVal = a.entryType;
+      bVal = b.entryType;
+    } else {
+      aVal = a[historySort.column] || '';
+      bVal = b[historySort.column] || '';
+    }
+
+    if (aVal < bVal) return historySort.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return historySort.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
 
   if (items.length === 0) {
-    listEl.innerHTML = '<p class="empty-state">No entries found</p>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No entries found</td></tr>';
     return;
   }
 
-  listEl.innerHTML = items.map(item => {
+  tbody.innerHTML = items.map(item => {
     if (item.entryType === 'hours') {
       return `
-        <div class="history-item hours">
-          <div class="history-info">
-            <div class="history-title">${escapeHtml(item.type.replace('-', ' '))}</div>
-            <div class="history-details">${escapeHtml(item.description || 'No description')}</div>
-          </div>
-          <div class="history-meta">
-            <div class="history-amount">${item.hours}h = $${(item.hours * item.rate).toFixed(2)}</div>
-            <div class="history-date">${formatDate(item.date)}</div>
-          </div>
-        </div>
+        <tr>
+          <td>${formatDate(item.date)}</td>
+          <td><span class="status-badge unpaid">Hours</span></td>
+          <td>${escapeHtml(item.type.replace('-', ' '))}${item.description ? ': ' + escapeHtml(item.description) : ''}</td>
+          <td>${item.hours}h</td>
+          <td>$${(item.hours * item.rate).toFixed(2)}</td>
+          <td><span class="status-badge ${item.approved ? 'paid' : 'pending'}">${item.approved ? 'Approved' : 'Pending'}</span></td>
+        </tr>
       `;
     } else {
-      const statusClass = item.invoiceStatus === 'returned' ? 'returned' : (item.invoiceStatus === 'pending' ? 'pending-invoice' : '');
       const unitsDisplay = item.units && item.units > 1 ? `${item.units} × ` : '';
-      const orderNumbers = (item.salesOrder || item.customerPO)
-        ? `<div class="history-details order-numbers">${item.salesOrder ? `SO#: ${escapeHtml(item.salesOrder)}` : ''}${item.salesOrder && item.customerPO ? ' · ' : ''}${item.customerPO ? `PO#: ${escapeHtml(item.customerPO)}` : ''}</div>`
-        : '';
       return `
-        <div class="history-item sale ${statusClass}">
-          <div class="history-info">
-            <div class="history-title">${escapeHtml(item.customer)}</div>
-            <div class="history-details">${unitsDisplay}${escapeHtml(item.item)} · $${item.price.toFixed(2)} (GP: $${item.grossProfit.toFixed(2)})</div>
-            <div class="history-details">${getAccountTypeLabel(item.accountType)} · ${item.isFirstOrder ? 'First Order' : 'Reorder'}</div>
-            ${orderNumbers}
-            <span class="history-status ${item.invoiceStatus}">${item.invoiceStatus}</span>
-          </div>
-          <div class="history-meta">
-            <div class="history-amount commission">+$${item.commission.toFixed(2)}</div>
-            <div class="history-date">${formatDate(item.date)}</div>
-          </div>
-        </div>
+        <tr>
+          <td>${formatDate(item.date)}</td>
+          <td><span class="status-badge paid">Sale</span></td>
+          <td>
+            <strong>${escapeHtml(item.customer)}</strong><br>
+            <span style="font-size:0.8rem;color:#666;">${unitsDisplay}${escapeHtml(item.item)} · $${item.price.toFixed(2)}</span>
+          </td>
+          <td>$${item.grossProfit.toFixed(2)} GP</td>
+          <td style="color:#2e7d32;font-weight:600;">+$${item.commission.toFixed(2)}</td>
+          <td><span class="status-badge ${item.invoiceStatus}">${item.invoiceStatus}</span></td>
+        </tr>
       `;
     }
   }).join('');
 }
+
+// History table sorting
+document.querySelectorAll('#history-table th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    const column = th.dataset.sort;
+    if (historySort.column === column) {
+      historySort.direction = historySort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      historySort.column = column;
+      historySort.direction = 'asc';
+    }
+    document.querySelectorAll('#history-table th').forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+    th.classList.add(historySort.direction === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    renderHistory();
+  });
+});
 
 // Inline invoice status update
 window.updateInvoiceStatus = async function(saleId, status) {

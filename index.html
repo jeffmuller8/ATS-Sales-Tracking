@@ -206,8 +206,21 @@
             <option value="all">All Time</option>
           </select>
         </div>
-        <div id="history-list" class="history-list">
-          <p class="empty-state">No entries yet</p>
+        <div class="table-container">
+          <table id="history-table" class="data-table">
+            <thead>
+              <tr>
+                <th data-sort="date">Date</th>
+                <th data-sort="type">Type</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Earnings</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="history-tbody">
+            </tbody>
+          </table>
         </div>
       </section>
     </main>
