@@ -98,6 +98,15 @@ onAuthStateChanged(auth, (user) => {
     // Load data
     setupDataListeners();
 
+    // Ensure tables render after DOM is ready (for admin/accountant)
+    if (role !== 'sales') {
+      setTimeout(() => {
+        renderInvoicesTable();
+        renderCommissionsTable();
+        renderHoursTable();
+      }, 100);
+    }
+
   } else {
     currentUser = null;
     currentRole = null;
@@ -156,10 +165,13 @@ document.querySelectorAll('.tab[data-acc-tab]').forEach(tab => {
     const tabName = tab.dataset.accTab;
     if (tabName === 'invoices') {
       document.getElementById('invoices-tab').classList.add('active');
+      renderInvoicesTable();
     } else if (tabName === 'commissions') {
       document.getElementById('commissions-tab').classList.add('active');
+      renderCommissionsTable();
     } else if (tabName === 'hours') {
       document.getElementById('hours-log-tab').classList.add('active');
+      renderHoursTable();
     }
   });
 });
@@ -726,10 +738,15 @@ let commissionSort = { column: 'date', direction: 'desc' };
 // Render Invoices Table
 function renderInvoicesTable() {
   const tbody = document.getElementById('invoices-tbody');
-  if (!tbody) return;
+  if (!tbody) {
+    console.log('invoices-tbody not found');
+    return;
+  }
 
   const filterEl = document.getElementById('invoice-filter');
   const filter = (filterEl && filterEl.value) ? filterEl.value : 'all';
+
+  console.log('Rendering invoices table, filter:', filter, 'salesEntries:', salesEntries.length);
 
   let filtered = [...salesEntries];
   if (filter && filter !== 'all') {
