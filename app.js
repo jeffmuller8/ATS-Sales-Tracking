@@ -74,11 +74,28 @@ signOutBtn.addEventListener('click', () => {
   signOut(auth);
 });
 
+// Update greeting based on time of day
+function updateGreeting(userName) {
+  const hour = new Date().getHours();
+  let greeting = 'Good morning';
+  if (hour >= 12 && hour < 17) greeting = 'Good afternoon';
+  else if (hour >= 17) greeting = 'Good evening';
+
+  const firstName = userName ? userName.split('@')[0].split('.')[0] : '';
+  const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+
+  const greetingEl = document.getElementById('greeting');
+  if (greetingEl && displayName) {
+    greetingEl.textContent = `${greeting}, ${displayName}`;
+  }
+}
+
 // Auth state listener
 onAuthStateChanged(auth, (user) => {
   if (user) {
     currentUser = user;
     const role = AUTHORIZED_USERS[user.email];
+    updateGreeting(user.email);
 
     if (!role) {
       alert('You are not authorized to use this application. Contact the administrator.');
@@ -206,51 +223,25 @@ async function logAudit(action, details) {
   }
 }
 
-// Tab indicator setup and animation
-function setupTabIndicator(tabsContainer) {
-  // Create indicator if it doesn't exist
-  let indicator = tabsContainer.querySelector('.tab-indicator');
-  if (!indicator) {
-    indicator = document.createElement('div');
-    indicator.className = 'tab-indicator';
-    tabsContainer.appendChild(indicator);
+// Tab indicator animation
+function updateTabIndicator(tabsContainer) {
+  const activeTab = tabsContainer.querySelector('.tab.active');
+  const indicator = tabsContainer.querySelector('.tab-indicator');
+  if (activeTab && indicator) {
+    indicator.style.left = activeTab.offsetLeft + 'px';
+    indicator.style.width = activeTab.offsetWidth + 'px';
   }
-
-  // Position indicator under active tab after a short delay for DOM to settle
-  setTimeout(() => {
-    const activeTab = tabsContainer.querySelector('.tab.active');
-    if (activeTab) {
-      moveIndicator(indicator, activeTab);
-    }
-  }, 50);
-
-  return indicator;
 }
 
-function moveIndicator(indicator, tab) {
-  indicator.style.left = tab.offsetLeft + 'px';
-  indicator.style.width = tab.offsetWidth + 'px';
+// Initialize tab indicators on load
+function initTabIndicators() {
+  const mainTabs = document.getElementById('main-tabs');
+  const accTabs = document.getElementById('acc-tabs');
+  if (mainTabs) updateTabIndicator(mainTabs);
+  if (accTabs) updateTabIndicator(accTabs);
 }
-
-// Reposition indicators on window resize
-window.addEventListener('resize', () => {
-  document.querySelectorAll('.tabs').forEach(container => {
-    const indicator = container.querySelector('.tab-indicator');
-    const activeTab = container.querySelector('.tab.active');
-    if (indicator && activeTab) {
-      moveIndicator(indicator, activeTab);
-    }
-  });
-});
 
 // Tab switching (sales view)
-const salesTabsContainer = document.querySelector('.tabs:not(.acc-tabs)');
-let salesIndicator = null;
-
-if (salesTabsContainer) {
-  salesIndicator = setupTabIndicator(salesTabsContainer);
-}
-
 document.querySelectorAll('.tab[data-tab]').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.remove('active'));
@@ -259,21 +250,12 @@ document.querySelectorAll('.tab[data-tab]').forEach(tab => {
     tab.classList.add('active');
     document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
 
-    // Animate indicator
-    if (salesIndicator) {
-      moveIndicator(salesIndicator, tab);
-    }
+    const tabsContainer = document.getElementById('main-tabs');
+    if (tabsContainer) updateTabIndicator(tabsContainer);
   });
 });
 
 // Tab switching (accountant view)
-const accTabsContainer = document.querySelector('.acc-tabs');
-let accIndicator = null;
-
-if (accTabsContainer) {
-  accIndicator = setupTabIndicator(accTabsContainer);
-}
-
 document.querySelectorAll('.tab[data-acc-tab]').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab[data-acc-tab]').forEach(t => t.classList.remove('active'));
@@ -295,12 +277,14 @@ document.querySelectorAll('.tab[data-acc-tab]').forEach(tab => {
       renderAuditTrail();
     }
 
-    // Animate indicator
-    if (accIndicator) {
-      moveIndicator(accIndicator, tab);
-    }
+    const tabsContainer = document.getElementById('acc-tabs');
+    if (tabsContainer) updateTabIndicator(tabsContainer);
   });
 });
+
+// Initialize indicators after DOM is ready
+window.addEventListener('load', initTabIndicators);
+window.addEventListener('resize', initTabIndicators);
 
 // Set default date to today
 document.getElementById('hours-date').valueAsDate = new Date();
@@ -768,6 +752,11 @@ function updateDashboard() {
   const pendingSales = monthSales.filter(s => s.invoiceStatus === 'pending');
   const pendingCommissions = pendingSales.reduce((sum, s) => sum + s.commission, 0);
 
+  // Commissions owed = invoice paid but commission not yet paid out (all time for this user)
+  const owedCommissions = salesEntries
+    .filter(s => s.createdBy === currentUser?.email && s.invoiceStatus === 'paid' && !s.commissionPaid)
+    .reduce((sum, s) => sum + s.commission, 0);
+
   // Update DOM
   if (currentRole === 'sales') {
     document.getElementById('hours-month').textContent = totalHours.toFixed(1);
@@ -776,6 +765,7 @@ function updateDashboard() {
     document.getElementById('sales-gp').textContent = `$${totalGP.toFixed(2)} GP`;
     document.getElementById('commissions-earned').textContent = `$${earnedCommissions.toFixed(2)}`;
     document.getElementById('commissions-pending').textContent = `$${pendingCommissions.toFixed(2)}`;
+    document.getElementById('commissions-owed').textContent = `$${owedCommissions.toFixed(2)}`;
     document.getElementById('total-earnings').textContent = `$${(hoursEarnings + earnedCommissions).toFixed(2)}`;
   }
   if (currentRole === 'accountant' || currentRole === 'admin') {

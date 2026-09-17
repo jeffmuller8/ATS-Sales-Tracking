@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ATS Sales Tracking</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,7 +18,10 @@
 
   <div class="container">
     <header>
-      <h1>ATS Sales Tracking</h1>
+      <div class="header-left">
+        <h1 id="greeting">ATS Sales Tracking</h1>
+        <p class="header-subtitle">Here's what needs your attention today.</p>
+      </div>
       <div id="auth-section" class="auth-section">
         <span id="user-info" class="user-info" style="display: none;"></span>
         <span id="user-role" class="user-role" style="display: none;"></span>
@@ -30,27 +36,32 @@
         <h2>Dashboard</h2>
         <div class="stats-grid">
           <div class="stat-card">
-            <span class="stat-label">Hours This Month</span>
+            <span class="stat-label">Hours This Month <span class="info-icon" data-tooltip="Total hours logged this month, multiplied by your hourly rate">i</span></span>
             <span class="stat-value" id="hours-month">0</span>
             <span class="stat-sub" id="hours-earnings">$0.00</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">Sales This Month</span>
+            <span class="stat-label">Sales This Month <span class="info-icon" data-tooltip="Number of sales you've logged this month and their total gross profit">i</span></span>
             <span class="stat-value" id="sales-month">0</span>
             <span class="stat-sub" id="sales-gp">$0 GP</span>
           </div>
           <div class="stat-card highlight">
-            <span class="stat-label">Commissions Earned</span>
+            <span class="stat-label">Commissions Earned <span class="info-icon" data-tooltip="Commissions from sales this month where the customer has already paid their invoice">i</span></span>
             <span class="stat-value" id="commissions-earned">$0.00</span>
             <span class="stat-sub">Paid invoices only</span>
           </div>
           <div class="stat-card pending">
-            <span class="stat-label">Pending Commissions</span>
+            <span class="stat-label">Pending Commissions <span class="info-icon" data-tooltip="Commissions from sales this month where the customer hasn't paid their invoice yet">i</span></span>
             <span class="stat-value" id="commissions-pending">$0.00</span>
-            <span class="stat-sub">Awaiting payment</span>
+            <span class="stat-sub">Awaiting customer payment</span>
+          </div>
+          <div class="stat-card trail">
+            <span class="stat-label">Commissions Owed <span class="info-icon" data-tooltip="Total commissions (all time) where the customer paid, but you haven't received your payout yet">i</span></span>
+            <span class="stat-value" id="commissions-owed">$0.00</span>
+            <span class="stat-sub">Ready for payout</span>
           </div>
           <div class="stat-card total">
-            <span class="stat-label">Total Earnings (Month)</span>
+            <span class="stat-label">Total Earnings <span class="info-icon" data-tooltip="Your total earnings this month from hours worked plus commissions earned (paid invoices only)">i</span></span>
             <span class="stat-value" id="total-earnings">$0.00</span>
             <span class="stat-sub">Hours + Commissions</span>
           </div>
@@ -58,10 +69,11 @@
       </section>
 
       <!-- Tabs -->
-      <div class="tabs">
+      <div class="tabs" id="main-tabs">
         <button class="tab active" data-tab="hours">Log Hours</button>
         <button class="tab" data-tab="sales">Log Sale</button>
         <button class="tab" data-tab="history">History</button>
+        <div class="tab-indicator"></div>
       </div>
 
       <!-- Log Hours Tab -->
@@ -256,27 +268,27 @@
         <h2>Commission Dashboard</h2>
         <div class="stats-grid">
           <div class="stat-card">
-            <span class="stat-label">Total Hours (All Time)</span>
+            <span class="stat-label">Total Hours <span class="info-icon" data-tooltip="All hours logged by salespeople across all time">i</span></span>
             <span class="stat-value" id="acc-hours-total">0</span>
             <span class="stat-sub" id="acc-hours-pay">$0.00</span>
           </div>
           <div class="stat-card">
-            <span class="stat-label">Total Sales</span>
+            <span class="stat-label">Total Sales <span class="info-icon" data-tooltip="Total number of sales logged and their combined gross profit">i</span></span>
             <span class="stat-value" id="acc-sales-total">0</span>
             <span class="stat-sub" id="acc-sales-gp">$0 GP</span>
           </div>
           <div class="stat-card highlight">
-            <span class="stat-label">Commissions Unpaid</span>
+            <span class="stat-label">Commissions Owed <span class="info-icon" data-tooltip="Commissions where customer has paid their invoice, but salesperson hasn't received their payout yet">i</span></span>
             <span class="stat-value" id="acc-commissions-owed">$0.00</span>
-            <span class="stat-sub">Owed to sales</span>
+            <span class="stat-sub">Ready to pay out</span>
           </div>
           <div class="stat-card pending">
-            <span class="stat-label">Pending Invoices</span>
+            <span class="stat-label">Pending Invoices <span class="info-icon" data-tooltip="Commissions on invoices that haven't been paid by customers yet">i</span></span>
             <span class="stat-value" id="acc-commissions-pending">$0.00</span>
             <span class="stat-sub">Awaiting customer payment</span>
           </div>
           <div class="stat-card paid-out">
-            <span class="stat-label">Commissions Paid Out</span>
+            <span class="stat-label">Commissions Paid <span class="info-icon" data-tooltip="Total commissions that have been paid out to salespeople (all time)">i</span></span>
             <span class="stat-value" id="acc-commissions-paid">$0.00</span>
             <span class="stat-sub">All time</span>
           </div>
@@ -294,11 +306,12 @@
       </div>
 
       <!-- Tabs for the two tables -->
-      <div class="tabs acc-tabs">
+      <div class="tabs acc-tabs" id="acc-tabs">
         <button class="tab active" data-acc-tab="invoices">Customer Invoices</button>
         <button class="tab" data-acc-tab="commissions">Commission Payouts</button>
         <button class="tab" data-acc-tab="hours">Hours Log</button>
         <button class="tab" data-acc-tab="audit">Audit Trail</button>
+        <div class="tab-indicator"></div>
         <button id="export-btn" class="btn-secondary" style="margin-left: auto;">Export CSV</button>
       </div>
 
