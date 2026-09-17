@@ -7,6 +7,12 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <span>Loading...</span>
+  </div>
+
   <div class="container">
     <header>
       <h1>ATS Sales Tracking</h1>
@@ -195,7 +201,16 @@
 
       <!-- History Tab -->
       <section id="history-tab" class="tab-content">
-        <h2>Sales History</h2>
+        <div class="filter-bar">
+          <input type="text" id="sales-search" class="search-input global-search-input" placeholder="Search customers, items, SO#...">
+          <select class="date-range-filter">
+            <option value="all">All Time</option>
+            <option value="month">This Month</option>
+            <option value="last-month">Last Month</option>
+          </select>
+        </div>
+
+        <h2>Sales History <span id="sales-history-count" class="row-count"></span></h2>
         <div class="table-container">
           <table id="sales-history-table" class="data-table">
             <thead>
@@ -207,6 +222,7 @@
                 <th data-sort="gp">GP</th>
                 <th data-sort="commission">Commission</th>
                 <th data-sort="status">Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody id="sales-history-tbody">
@@ -214,7 +230,7 @@
           </table>
         </div>
 
-        <h2 style="margin-top: 2rem;">Hours History</h2>
+        <h2 style="margin-top: 2rem;">Hours History <span id="hours-history-count" class="row-count"></span></h2>
         <div class="table-container">
           <table id="hours-history-table" class="data-table">
             <thead>
@@ -267,11 +283,22 @@
         </div>
       </section>
 
+      <!-- Search and Filter Bar -->
+      <div class="filter-bar admin-filter-bar">
+        <input type="text" id="admin-search" class="search-input global-search-input" placeholder="Search customers, items, SO#...">
+        <select class="date-range-filter">
+          <option value="all">All Time</option>
+          <option value="month">This Month</option>
+          <option value="last-month">Last Month</option>
+        </select>
+      </div>
+
       <!-- Tabs for the two tables -->
       <div class="tabs acc-tabs">
         <button class="tab active" data-acc-tab="invoices">Customer Invoices</button>
         <button class="tab" data-acc-tab="commissions">Commission Payouts</button>
         <button class="tab" data-acc-tab="hours">Hours Log</button>
+        <button class="tab" data-acc-tab="audit">Audit Trail</button>
         <button id="export-btn" class="btn-secondary" style="margin-left: auto;">Export CSV</button>
       </div>
 
@@ -283,11 +310,18 @@
             <span class="toggle-slider"></span>
             <span class="toggle-label">Hide paid invoices</span>
           </label>
+          <span id="invoices-count" class="row-count"></span>
+        </div>
+        <div id="invoice-batch-actions" class="batch-actions" style="display: none;">
+          <span class="batch-count"><span id="invoice-selected-count">0</span> selected</span>
+          <button class="btn-batch" onclick="batchMarkInvoicesPaid()">Mark All Paid</button>
+          <button class="btn-batch-clear" onclick="toggleSelectAll('invoices', false)">Clear</button>
         </div>
         <div class="table-container">
           <table id="invoices-table" class="data-table">
             <thead>
               <tr>
+                <th><input type="checkbox" onchange="toggleSelectAll('invoices', this.checked)"></th>
                 <th data-sort="date">Date</th>
                 <th data-sort="customer">Customer</th>
                 <th data-sort="item">Item</th>
@@ -312,11 +346,18 @@
             <span class="toggle-slider"></span>
             <span class="toggle-label">Hide paid commissions</span>
           </label>
+          <span id="commissions-count" class="row-count"></span>
+        </div>
+        <div id="commission-batch-actions" class="batch-actions" style="display: none;">
+          <span class="batch-count"><span id="commission-selected-count">0</span> selected</span>
+          <button class="btn-batch" onclick="batchMarkCommissionsPaid()">Mark All Paid</button>
+          <button class="btn-batch-clear" onclick="toggleSelectAll('commissions', false)">Clear</button>
         </div>
         <div class="table-container">
           <table id="commissions-table" class="data-table">
             <thead>
               <tr>
+                <th><input type="checkbox" onchange="toggleSelectAll('commissions', this.checked)"></th>
                 <th data-sort="date">Sale Date</th>
                 <th data-sort="customer">Customer</th>
                 <th data-sort="item">Item</th>
@@ -342,11 +383,19 @@
             <span class="toggle-slider"></span>
             <span class="toggle-label">Hide paid hours</span>
           </label>
+          <span id="hours-count" class="row-count"></span>
+        </div>
+        <div id="hours-batch-actions" class="batch-actions" style="display: none;">
+          <span class="batch-count"><span id="hours-selected-count">0</span> selected</span>
+          <button class="btn-batch" onclick="batchApproveHours()">Approve All</button>
+          <button class="btn-batch" onclick="batchMarkHoursPaid()">Mark All Paid</button>
+          <button class="btn-batch-clear" onclick="toggleSelectAll('hours', false)">Clear</button>
         </div>
         <div class="table-container">
           <table id="hours-table" class="data-table">
             <thead>
               <tr>
+                <th><input type="checkbox" onchange="toggleSelectAll('hours', this.checked)"></th>
                 <th data-sort="date">Date</th>
                 <th data-sort="type">Type</th>
                 <th data-sort="description">Description</th>
@@ -363,6 +412,25 @@
         </div>
       </section>
 
+      <!-- Audit Trail Table -->
+      <section id="audit-tab" class="acc-tab-content">
+        <h3>Audit Trail</h3>
+        <p class="audit-description">Recent changes to invoices, commissions, and hours</p>
+        <div class="table-container">
+          <table id="audit-table" class="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="audit-tbody">
+            </tbody>
+          </table>
+        </div>
+      </section>
 
     </main>
   </div>

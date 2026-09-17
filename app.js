@@ -1,6 +1,6 @@
 // Firebase imports
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { getAuth, signInWithPopup, signOut, GoogleAuthProvider, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
 // Firebase configuration
@@ -42,6 +42,17 @@ let currentUser = null;
 let currentRole = null;
 let hoursEntries = [];
 let salesEntries = [];
+let auditEntries = [];
+let isLoading = true;
+
+// Filter state
+let globalSearchTerm = '';
+let dateRangeFilter = 'all'; // 'month', 'last-month', 'all'
+
+// Batch selection state
+let selectedInvoices = new Set();
+let selectedCommissions = new Set();
+let selectedHours = new Set();
 
 // DOM Elements
 const signInBtn = document.getElementById('sign-in-btn');
@@ -121,10 +132,25 @@ onAuthStateChanged(auth, (user) => {
 
 // Data listeners
 function setupDataListeners() {
+  isLoading = true;
+  showLoading();
+
+  let hoursLoaded = false;
+  let salesLoaded = false;
+
+  function checkLoadingComplete() {
+    if (hoursLoaded && salesLoaded) {
+      isLoading = false;
+      hideLoading();
+    }
+  }
+
   // Hours entries
   const hoursQuery = query(collection(db, 'hours'), orderBy('date', 'desc'));
   onSnapshot(hoursQuery, (snapshot) => {
     hoursEntries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    hoursLoaded = true;
+    checkLoadingComplete();
     updateDashboard();
     renderHistory();
     renderHoursTable();
@@ -134,6 +160,8 @@ function setupDataListeners() {
   const salesQuery = query(collection(db, 'sales'), orderBy('date', 'desc'));
   onSnapshot(salesQuery, (snapshot) => {
     salesEntries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    salesLoaded = true;
+    checkLoadingComplete();
     updateCustomerDropdown();
     updateProductDropdown();
     updateDashboard();
@@ -142,9 +170,87 @@ function setupDataListeners() {
     renderCommissionsTable();
     renderHoursTable();
   });
+
+  // Audit trail entries (admin only)
+  if (currentRole === 'admin' || currentRole === 'accountant') {
+    const auditQuery = query(collection(db, 'audit'), orderBy('timestamp', 'desc'));
+    onSnapshot(auditQuery, (snapshot) => {
+      auditEntries = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      renderAuditTrail();
+    });
+  }
 }
 
+// Loading state helpers
+function showLoading() {
+  const loader = document.getElementById('loading-overlay');
+  if (loader) loader.style.display = 'flex';
+}
+
+function hideLoading() {
+  const loader = document.getElementById('loading-overlay');
+  if (loader) loader.style.display = 'none';
+}
+
+// Audit trail logging
+async function logAudit(action, details) {
+  try {
+    await addDoc(collection(db, 'audit'), {
+      action,
+      details,
+      user: currentUser?.email || 'unknown',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error logging audit:', error);
+  }
+}
+
+// Tab indicator setup and animation
+function setupTabIndicator(tabsContainer) {
+  // Create indicator if it doesn't exist
+  let indicator = tabsContainer.querySelector('.tab-indicator');
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.className = 'tab-indicator';
+    tabsContainer.appendChild(indicator);
+  }
+
+  // Position indicator under active tab after a short delay for DOM to settle
+  setTimeout(() => {
+    const activeTab = tabsContainer.querySelector('.tab.active');
+    if (activeTab) {
+      moveIndicator(indicator, activeTab);
+    }
+  }, 50);
+
+  return indicator;
+}
+
+function moveIndicator(indicator, tab) {
+  indicator.style.left = tab.offsetLeft + 'px';
+  indicator.style.width = tab.offsetWidth + 'px';
+}
+
+// Reposition indicators on window resize
+window.addEventListener('resize', () => {
+  document.querySelectorAll('.tabs').forEach(container => {
+    const indicator = container.querySelector('.tab-indicator');
+    const activeTab = container.querySelector('.tab.active');
+    if (indicator && activeTab) {
+      moveIndicator(indicator, activeTab);
+    }
+  });
+});
+
 // Tab switching (sales view)
+const salesTabsContainer = document.querySelector('.tabs:not(.acc-tabs)');
+let salesIndicator = null;
+
+if (salesTabsContainer) {
+  salesIndicator = setupTabIndicator(salesTabsContainer);
+}
+
 document.querySelectorAll('.tab[data-tab]').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.remove('active'));
@@ -152,10 +258,22 @@ document.querySelectorAll('.tab[data-tab]').forEach(tab => {
 
     tab.classList.add('active');
     document.getElementById(`${tab.dataset.tab}-tab`).classList.add('active');
+
+    // Animate indicator
+    if (salesIndicator) {
+      moveIndicator(salesIndicator, tab);
+    }
   });
 });
 
 // Tab switching (accountant view)
+const accTabsContainer = document.querySelector('.acc-tabs');
+let accIndicator = null;
+
+if (accTabsContainer) {
+  accIndicator = setupTabIndicator(accTabsContainer);
+}
+
 document.querySelectorAll('.tab[data-acc-tab]').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.tab[data-acc-tab]').forEach(t => t.classList.remove('active'));
@@ -172,6 +290,14 @@ document.querySelectorAll('.tab[data-acc-tab]').forEach(tab => {
     } else if (tabName === 'hours') {
       document.getElementById('hours-log-tab').classList.add('active');
       renderHoursTable();
+    } else if (tabName === 'audit') {
+      document.getElementById('audit-tab').classList.add('active');
+      renderAuditTrail();
+    }
+
+    // Animate indicator
+    if (accIndicator) {
+      moveIndicator(accIndicator, tab);
     }
   });
 });
@@ -179,6 +305,69 @@ document.querySelectorAll('.tab[data-acc-tab]').forEach(tab => {
 // Set default date to today
 document.getElementById('hours-date').valueAsDate = new Date();
 document.getElementById('sale-date').valueAsDate = new Date();
+
+// Global search handlers (for both sales and admin views)
+document.querySelectorAll('.global-search-input').forEach(input => {
+  input.addEventListener('input', (e) => {
+    globalSearchTerm = e.target.value.toLowerCase().trim();
+    // Sync both search inputs
+    document.querySelectorAll('.global-search-input').forEach(inp => {
+      if (inp !== e.target) inp.value = e.target.value;
+    });
+    renderAllTables();
+  });
+});
+
+// Date range filter handler
+document.querySelectorAll('.date-range-filter').forEach(select => {
+  select.addEventListener('change', (e) => {
+    dateRangeFilter = e.target.value;
+    // Sync all date filters
+    document.querySelectorAll('.date-range-filter').forEach(s => s.value = dateRangeFilter);
+    renderAllTables();
+  });
+});
+
+function renderAllTables() {
+  renderInvoicesTable();
+  renderCommissionsTable();
+  renderHoursTable();
+  renderHistory();
+}
+
+// Date range filter helper
+function filterByDateRange(entries) {
+  if (dateRangeFilter === 'all') return entries;
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  return entries.filter(entry => {
+    const d = new Date(entry.date);
+    if (dateRangeFilter === 'month') {
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    } else if (dateRangeFilter === 'last-month') {
+      const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+      const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+      return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
+    }
+    return true;
+  });
+}
+
+// Global search filter helper
+function filterBySearch(entries, searchFields) {
+  if (!globalSearchTerm) return entries;
+
+  return entries.filter(entry => {
+    return searchFields.some(field => {
+      const value = entry[field];
+      if (value === null || value === undefined) return false;
+      return String(value).toLowerCase().includes(globalSearchTerm);
+    });
+  });
+}
 
 // Hours form submission
 document.getElementById('hours-form').addEventListener('submit', async (e) => {
@@ -191,7 +380,8 @@ document.getElementById('hours-form').addEventListener('submit', async (e) => {
     description: document.getElementById('hours-description').value,
     rate: HOURLY_RATE,
     createdBy: currentUser.email,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 
   try {
@@ -499,11 +689,35 @@ document.getElementById('sales-form').addEventListener('submit', async (e) => {
       : null,
     notes: document.getElementById('sale-notes').value,
     createdBy: currentUser.email,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 
   try {
-    await addDoc(collection(db, 'sales'), entry);
+    const editingId = e.target.dataset.editingId;
+
+    if (editingId) {
+      // Update existing sale
+      await updateDoc(doc(db, 'sales', editingId), {
+        ...entry,
+        updatedAt: new Date().toISOString()
+      });
+
+      await logAudit('sale_edited', {
+        saleId: editingId,
+        customer: entry.customer,
+        item: entry.item,
+        price: entry.price
+      });
+
+      delete e.target.dataset.editingId;
+      alert('Sale updated successfully!');
+    } else {
+      // Add new sale
+      await addDoc(collection(db, 'sales'), entry);
+      alert('Sale logged successfully!');
+    }
+
     e.target.reset();
     document.getElementById('sale-date').valueAsDate = new Date();
     saleUnitsInput.value = '1';
@@ -517,7 +731,6 @@ document.getElementById('sales-form').addEventListener('submit', async (e) => {
     saleItemNewInput.style.display = 'none';
     saleItemNewInput.required = false;
     updateTotals();
-    alert('Sale logged successfully!');
   } catch (error) {
     console.error('Error logging sale:', error);
     alert('Error logging sale. Please try again.');
@@ -622,7 +835,15 @@ function renderSalesHistoryTable() {
     status: 'invoiceStatus'
   };
 
-  let sorted = [...salesEntries].sort((a, b) => {
+  let filtered = [...salesEntries];
+
+  // Apply date range filter
+  filtered = filterByDateRange(filtered);
+
+  // Apply search filter
+  filtered = filterBySearch(filtered, ['customer', 'item', 'salesOrder', 'customerPO']);
+
+  let sorted = filtered.sort((a, b) => {
     // Pending first by default
     const aIsPending = a.invoiceStatus === 'pending' ? 0 : 1;
     const bIsPending = b.invoiceStatus === 'pending' ? 0 : 1;
@@ -647,22 +868,33 @@ function renderSalesHistoryTable() {
     return 0;
   });
 
+  // Update row count
+  const rowCount = document.getElementById('sales-history-count');
+  if (rowCount) rowCount.textContent = `Showing ${sorted.length} sale${sorted.length !== 1 ? 's' : ''}`;
+
   if (sorted.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No sales yet</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No sales yet</td></tr>';
     return;
   }
 
   tbody.innerHTML = sorted.map(sale => {
     const unitsDisplay = sale.units && sale.units > 1 ? `${sale.units} × ` : '';
+    const canEdit = sale.createdBy === currentUser?.email;
     return `
-      <tr>
-        <td>${formatDate(sale.date)}</td>
+      <tr class="${sale.invoiceStatus === 'pending' ? 'row-pending' : sale.invoiceStatus === 'returned' ? 'row-returned' : ''}">
+        <td>${formatDate(sale.date)}${sale.updatedAt ? `<span class="updated-badge" title="Updated ${formatDateTime(sale.updatedAt)}">✎</span>` : ''}</td>
         <td>${escapeHtml(sale.customer)}</td>
         <td>${unitsDisplay}${escapeHtml(sale.item)}</td>
         <td>$${sale.price.toFixed(2)}</td>
         <td>$${sale.grossProfit.toFixed(2)}</td>
         <td style="color:#2e7d32;font-weight:600;">+$${sale.commission.toFixed(2)}</td>
         <td><span class="status-badge ${sale.invoiceStatus}">${sale.invoiceStatus}</span></td>
+        <td class="actions-cell">
+          ${canEdit ? `
+            <button class="btn-icon" onclick="editSale('${sale.id}')" title="Edit">✎</button>
+            <button class="btn-icon btn-danger" onclick="deleteSale('${sale.id}')" title="Delete">✕</button>
+          ` : '-'}
+        </td>
       </tr>
     `;
   }).join('');
@@ -681,7 +913,15 @@ function renderHoursHistoryTable() {
     status: 'approved'
   };
 
-  let sorted = [...hoursEntries].sort((a, b) => {
+  let filtered = [...hoursEntries];
+
+  // Apply date range filter
+  filtered = filterByDateRange(filtered);
+
+  // Apply search filter
+  filtered = filterBySearch(filtered, ['type', 'description']);
+
+  let sorted = filtered.sort((a, b) => {
     // Unapproved (pending) first by default
     const aIsPending = !a.approved ? 0 : 1;
     const bIsPending = !b.approved ? 0 : 1;
@@ -710,14 +950,18 @@ function renderHoursHistoryTable() {
     return 0;
   });
 
+  // Update row count
+  const rowCount = document.getElementById('hours-history-count');
+  if (rowCount) rowCount.textContent = `Showing ${sorted.length} entr${sorted.length !== 1 ? 'ies' : 'y'}`;
+
   if (sorted.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No hours logged</td></tr>';
     return;
   }
 
   tbody.innerHTML = sorted.map(h => `
-    <tr>
-      <td>${formatDate(h.date)}</td>
+    <tr class="${!h.approved ? 'row-pending' : ''}">
+      <td>${formatDate(h.date)}${h.updatedAt ? `<span class="updated-badge" title="Updated ${formatDateTime(h.updatedAt)}">✎</span>` : ''}</td>
       <td>${escapeHtml(h.type.replace('-', ' '))}</td>
       <td>${escapeHtml(h.description || '-')}</td>
       <td>${h.hours}h</td>
@@ -762,8 +1006,21 @@ document.querySelectorAll('#hours-history-table th[data-sort]').forEach(th => {
 // Inline invoice status update
 window.updateInvoiceStatus = async function(saleId, status) {
   try {
+    const sale = salesEntries.find(s => s.id === saleId);
+    const oldStatus = sale?.invoiceStatus || 'unknown';
+
     await updateDoc(doc(db, 'sales', saleId), {
-      invoiceStatus: status
+      invoiceStatus: status,
+      updatedAt: new Date().toISOString()
+    });
+
+    // Log audit trail
+    await logAudit('invoice_status_change', {
+      saleId,
+      customer: sale?.customer,
+      item: sale?.item,
+      oldStatus,
+      newStatus: status
     });
   } catch (error) {
     console.error('Error updating invoice status:', error);
@@ -818,6 +1075,13 @@ function renderInvoicesTable() {
   const hidePaid = document.getElementById('hide-paid-invoices-toggle')?.checked || false;
 
   let filtered = [...salesEntries];
+
+  // Apply date range filter
+  filtered = filterByDateRange(filtered);
+
+  // Apply search filter
+  filtered = filterBySearch(filtered, ['customer', 'item', 'salesOrder', 'customerPO']);
+
   if (hidePaid) {
     filtered = filtered.filter(s => s.invoiceStatus !== 'paid');
   }
@@ -860,14 +1124,19 @@ function renderInvoicesTable() {
     return 0;
   });
 
+  // Update row count
+  const rowCount = document.getElementById('invoices-count');
+  if (rowCount) rowCount.textContent = `Showing ${filtered.length} invoice${filtered.length !== 1 ? 's' : ''}`;
+
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No invoices found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No invoices found</td></tr>';
     return;
   }
 
   tbody.innerHTML = filtered.map(sale => `
-    <tr>
-      <td>${formatDate(sale.date)}</td>
+    <tr class="${sale.invoiceStatus === 'pending' ? 'row-pending' : sale.invoiceStatus === 'returned' ? 'row-returned' : ''}">
+      <td><input type="checkbox" class="row-checkbox" data-id="${sale.id}" data-table="invoices" ${selectedInvoices.has(sale.id) ? 'checked' : ''} onchange="toggleRowSelection('${sale.id}', 'invoices', this.checked)"></td>
+      <td>${formatDate(sale.date)}${sale.updatedAt ? `<span class="updated-badge" title="Updated ${formatDateTime(sale.updatedAt)}">✎</span>` : ''}</td>
       <td>${escapeHtml(sale.customer)}</td>
       <td>${sale.units > 1 ? sale.units + ' × ' : ''}${escapeHtml(sale.item)}</td>
       <td>$${sale.price.toFixed(2)}</td>
@@ -875,14 +1144,16 @@ function renderInvoicesTable() {
       <td>${escapeHtml(sale.salesOrder || '-')}</td>
       <td>${escapeHtml(sale.customerPO || '-')}</td>
       <td>
-        <select class="inline-select ${sale.invoiceStatus === 'paid' ? 'paid' : ''}" onchange="updateInvoiceStatus('${sale.id}', this.value)">
+        <select class="inline-select ${sale.invoiceStatus === 'paid' ? 'invoice-paid' : sale.invoiceStatus === 'pending' ? 'unpaid' : 'returned'}" onchange="updateInvoiceStatus('${sale.id}', this.value)">
           <option value="pending" ${sale.invoiceStatus === 'pending' ? 'selected' : ''}>Pending</option>
-          <option value="paid" ${sale.invoiceStatus === 'paid' ? 'selected' : ''}>Paid</option>
+          <option value="paid" ${sale.invoiceStatus === 'paid' ? 'selected' : ''}>✓ Paid</option>
           <option value="returned" ${sale.invoiceStatus === 'returned' ? 'selected' : ''}>Returned</option>
         </select>
       </td>
     </tr>
   `).join('');
+
+  updateBatchActionsVisibility();
 }
 
 // Render Commissions Table
@@ -893,6 +1164,12 @@ function renderCommissionsTable() {
   const hidePaid = document.getElementById('hide-paid-toggle')?.checked || false;
 
   let filtered = salesEntries.filter(s => s.invoiceStatus === 'paid'); // Only show paid invoices
+
+  // Apply date range filter
+  filtered = filterByDateRange(filtered);
+
+  // Apply search filter
+  filtered = filterBySearch(filtered, ['customer', 'item', 'salesOrder']);
 
   if (hidePaid) {
     filtered = filtered.filter(s => !s.commissionPaid);
@@ -939,24 +1216,29 @@ function renderCommissionsTable() {
     return 0;
   });
 
+  // Update row count
+  const rowCount = document.getElementById('commissions-count');
+  if (rowCount) rowCount.textContent = `Showing ${filtered.length} commission${filtered.length !== 1 ? 's' : ''}`;
+
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No commissions found</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No commissions found</td></tr>';
     return;
   }
 
   tbody.innerHTML = filtered.map(sale => `
-    <tr>
+    <tr class="${!sale.commissionPaid ? 'row-pending' : ''}">
+      <td><input type="checkbox" class="row-checkbox" data-id="${sale.id}" data-table="commissions" ${selectedCommissions.has(sale.id) ? 'checked' : ''} onchange="toggleRowSelection('${sale.id}', 'commissions', this.checked)"></td>
       <td>${formatDate(sale.date)}</td>
       <td>${escapeHtml(sale.customer)}</td>
       <td>${escapeHtml(sale.item)}</td>
       <td>$${sale.grossProfit.toFixed(2)}</td>
       <td>${(sale.commissionRate * 100).toFixed(0)}%</td>
       <td>$${sale.commission.toFixed(2)}</td>
-      <td><span class="status-badge paid">Paid</span></td>
+      <td><span class="status-badge invoice-paid">✓ Paid</span></td>
       <td>
-        <select class="inline-select ${sale.commissionPaid ? 'paid' : ''}" onchange="updateCommissionStatus('${sale.id}', this.value)">
+        <select class="inline-select ${sale.commissionPaid ? 'paid-out' : 'unpaid'}" onchange="updateCommissionStatus('${sale.id}', this.value)">
           <option value="unpaid" ${!sale.commissionPaid ? 'selected' : ''}>Unpaid</option>
-          <option value="paid" ${sale.commissionPaid ? 'selected' : ''}>Paid</option>
+          <option value="paid" ${sale.commissionPaid ? 'selected' : ''}>Paid Out</option>
         </select>
       </td>
       <td>${sale.commissionPaid && sale.commissionPaidDate
@@ -965,6 +1247,8 @@ function renderCommissionsTable() {
       }</td>
     </tr>
   `).join('');
+
+  updateBatchActionsVisibility();
 }
 
 // Render Hours Table
@@ -976,12 +1260,23 @@ function renderHoursTable() {
   const canApprove = currentUser && (currentUser.email === 'jeff@atsmanufacture.com' || currentUser.email === 'matt@atsmanufacture.com');
 
   let filtered = [...hoursEntries];
+
+  // Apply date range filter
+  filtered = filterByDateRange(filtered);
+
+  // Apply search filter
+  filtered = filterBySearch(filtered, ['type', 'description', 'createdBy']);
+
   if (hidePaid) {
     filtered = filtered.filter(h => !h.hoursPaid);
   }
 
+  // Update row count
+  const rowCount = document.getElementById('hours-count');
+  if (rowCount) rowCount.textContent = `Showing ${filtered.length} entr${filtered.length !== 1 ? 'ies' : 'y'}`;
+
   if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hours logged</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No hours logged</td></tr>';
     return;
   }
 
@@ -1026,30 +1321,33 @@ function renderHoursTable() {
   });
 
   tbody.innerHTML = sorted.map(h => `
-    <tr>
-      <td>${formatDate(h.date)}</td>
+    <tr class="${!h.approved ? 'row-pending' : !h.hoursPaid ? 'row-unpaid' : ''}">
+      <td><input type="checkbox" class="row-checkbox" data-id="${h.id}" data-table="hours" ${selectedHours.has(h.id) ? 'checked' : ''} onchange="toggleRowSelection('${h.id}', 'hours', this.checked)"></td>
+      <td>${formatDate(h.date)}${h.updatedAt ? `<span class="updated-badge" title="Updated ${formatDateTime(h.updatedAt)}">✎</span>` : ''}</td>
       <td>${escapeHtml(h.type.replace('-', ' '))}</td>
       <td>${escapeHtml(h.description || '-')}</td>
       <td>${h.hours}h</td>
       <td>$${(h.hours * h.rate).toFixed(2)}</td>
       <td>
         ${canApprove
-          ? `<select class="inline-select ${h.approved ? 'paid' : ''}" onchange="updateHoursApproval('${h.id}', this.value)">
-              <option value="no" ${!h.approved ? 'selected' : ''}>No</option>
-              <option value="yes" ${h.approved ? 'selected' : ''}>Yes</option>
+          ? `<select class="inline-select ${h.approved ? 'paid' : 'unpaid'}" onchange="updateHoursApproval('${h.id}', this.value)">
+              <option value="no" ${!h.approved ? 'selected' : ''}>Pending</option>
+              <option value="yes" ${h.approved ? 'selected' : ''}>Approved</option>
             </select>`
-          : `<span class="status-badge ${h.approved ? 'paid' : 'pending'}">${h.approved ? 'Yes' : 'No'}</span>`
+          : `<span class="status-badge ${h.approved ? 'paid' : 'pending'}">${h.approved ? 'Approved' : 'Pending'}</span>`
         }
       </td>
       <td>
-        <select class="inline-select ${h.hoursPaid ? 'paid' : ''}" onchange="updateHoursPaid('${h.id}', this.value)" ${!h.approved ? 'disabled' : ''}>
+        <select class="inline-select ${h.hoursPaid ? 'paid-out' : 'unpaid'}" onchange="updateHoursPaid('${h.id}', this.value)" ${!h.approved ? 'disabled' : ''}>
           <option value="no" ${!h.hoursPaid ? 'selected' : ''}>Unpaid</option>
-          <option value="yes" ${h.hoursPaid ? 'selected' : ''}>Paid</option>
+          <option value="yes" ${h.hoursPaid ? 'selected' : ''}>Paid Out</option>
         </select>
       </td>
       <td>${h.hoursPaid && h.hoursPaidDate ? formatDate(h.hoursPaidDate) : '-'}</td>
     </tr>
   `).join('');
+
+  updateBatchActionsVisibility();
 }
 
 // Table header sorting
@@ -1101,11 +1399,25 @@ document.querySelectorAll('#hours-table th[data-sort]').forEach(th => {
 // Inline commission status update
 window.updateCommissionStatus = async function(saleId, status) {
   try {
+    const sale = salesEntries.find(s => s.id === saleId);
+    const oldPaid = sale?.commissionPaid || false;
+
     const updates = {
       commissionPaid: status === 'paid',
-      commissionPaidDate: status === 'paid' ? new Date().toISOString().split('T')[0] : null
+      commissionPaidDate: status === 'paid' ? new Date().toISOString().split('T')[0] : null,
+      updatedAt: new Date().toISOString()
     };
     await updateDoc(doc(db, 'sales', saleId), updates);
+
+    // Log audit trail
+    await logAudit('commission_status_change', {
+      saleId,
+      customer: sale?.customer,
+      item: sale?.item,
+      commission: sale?.commission,
+      oldPaid,
+      newPaid: status === 'paid'
+    });
   } catch (error) {
     console.error('Error updating commission status:', error);
     alert('Error updating. Please try again.');
@@ -1123,10 +1435,24 @@ window.updateHoursApproval = async function(hoursId, value) {
   }
 
   try {
+    const entry = hoursEntries.find(h => h.id === hoursId);
+    const oldApproved = entry?.approved || false;
+
     await updateDoc(doc(db, 'hours', hoursId), {
       approved: value === 'yes',
       approvedBy: value === 'yes' ? currentUser.email : null,
-      approvedDate: value === 'yes' ? new Date().toISOString().split('T')[0] : null
+      approvedDate: value === 'yes' ? new Date().toISOString().split('T')[0] : null,
+      updatedAt: new Date().toISOString()
+    });
+
+    // Log audit trail
+    await logAudit('hours_approval_change', {
+      hoursId,
+      date: entry?.date,
+      hours: entry?.hours,
+      createdBy: entry?.createdBy,
+      oldApproved,
+      newApproved: value === 'yes'
     });
   } catch (error) {
     console.error('Error updating hours approval:', error);
@@ -1138,9 +1464,24 @@ window.updateHoursApproval = async function(hoursId, value) {
 // Hours paid status update
 window.updateHoursPaid = async function(hoursId, value) {
   try {
+    const entry = hoursEntries.find(h => h.id === hoursId);
+    const oldPaid = entry?.hoursPaid || false;
+
     await updateDoc(doc(db, 'hours', hoursId), {
       hoursPaid: value === 'yes',
-      hoursPaidDate: value === 'yes' ? new Date().toISOString().split('T')[0] : null
+      hoursPaidDate: value === 'yes' ? new Date().toISOString().split('T')[0] : null,
+      updatedAt: new Date().toISOString()
+    });
+
+    // Log audit trail
+    await logAudit('hours_paid_change', {
+      hoursId,
+      date: entry?.date,
+      hours: entry?.hours,
+      amount: entry?.hours * entry?.rate,
+      createdBy: entry?.createdBy,
+      oldPaid,
+      newPaid: value === 'yes'
     });
   } catch (error) {
     console.error('Error updating hours paid status:', error);
@@ -1169,3 +1510,326 @@ function getAccountTypeLabel(type) {
   };
   return labels[type] || type;
 }
+
+function formatDateTime(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
+// Batch selection functions
+window.toggleRowSelection = function(id, table, checked) {
+  const set = table === 'invoices' ? selectedInvoices : table === 'commissions' ? selectedCommissions : selectedHours;
+  if (checked) {
+    set.add(id);
+  } else {
+    set.delete(id);
+  }
+  updateBatchActionsVisibility();
+};
+
+window.toggleSelectAll = function(table, checked) {
+  const set = table === 'invoices' ? selectedInvoices : table === 'commissions' ? selectedCommissions : selectedHours;
+  const entries = table === 'hours' ? hoursEntries : salesEntries;
+
+  if (checked) {
+    entries.forEach(e => set.add(e.id));
+  } else {
+    set.clear();
+  }
+
+  // Update checkboxes
+  document.querySelectorAll(`input.row-checkbox[data-table="${table}"]`).forEach(cb => {
+    cb.checked = checked;
+  });
+
+  updateBatchActionsVisibility();
+};
+
+function updateBatchActionsVisibility() {
+  const invoiceActions = document.getElementById('invoice-batch-actions');
+  const commissionActions = document.getElementById('commission-batch-actions');
+  const hoursActions = document.getElementById('hours-batch-actions');
+
+  if (invoiceActions) {
+    invoiceActions.style.display = selectedInvoices.size > 0 ? 'flex' : 'none';
+    const count = document.getElementById('invoice-selected-count');
+    if (count) count.textContent = selectedInvoices.size;
+  }
+
+  if (commissionActions) {
+    commissionActions.style.display = selectedCommissions.size > 0 ? 'flex' : 'none';
+    const count = document.getElementById('commission-selected-count');
+    if (count) count.textContent = selectedCommissions.size;
+  }
+
+  if (hoursActions) {
+    hoursActions.style.display = selectedHours.size > 0 ? 'flex' : 'none';
+    const count = document.getElementById('hours-selected-count');
+    if (count) count.textContent = selectedHours.size;
+  }
+}
+
+// Batch actions
+window.batchMarkInvoicesPaid = async function() {
+  if (!confirm(`Mark ${selectedInvoices.size} invoice(s) as paid?`)) return;
+
+  try {
+    const promises = Array.from(selectedInvoices).map(id =>
+      updateDoc(doc(db, 'sales', id), {
+        invoiceStatus: 'paid',
+        updatedAt: new Date().toISOString()
+      })
+    );
+    await Promise.all(promises);
+
+    await logAudit('batch_invoice_paid', {
+      count: selectedInvoices.size,
+      saleIds: Array.from(selectedInvoices)
+    });
+
+    selectedInvoices.clear();
+    renderInvoicesTable();
+  } catch (error) {
+    console.error('Batch update error:', error);
+    alert('Error updating invoices.');
+  }
+};
+
+window.batchMarkCommissionsPaid = async function() {
+  if (!confirm(`Mark ${selectedCommissions.size} commission(s) as paid?`)) return;
+
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const promises = Array.from(selectedCommissions).map(id =>
+      updateDoc(doc(db, 'sales', id), {
+        commissionPaid: true,
+        commissionPaidDate: today,
+        updatedAt: new Date().toISOString()
+      })
+    );
+    await Promise.all(promises);
+
+    await logAudit('batch_commission_paid', {
+      count: selectedCommissions.size,
+      saleIds: Array.from(selectedCommissions)
+    });
+
+    selectedCommissions.clear();
+    renderCommissionsTable();
+  } catch (error) {
+    console.error('Batch update error:', error);
+    alert('Error updating commissions.');
+  }
+};
+
+window.batchApproveHours = async function() {
+  const canApprove = currentUser && (currentUser.email === 'jeff@atsmanufacture.com' || currentUser.email === 'matt@atsmanufacture.com');
+  if (!canApprove) {
+    alert('Only Jeff or Matt can approve hours.');
+    return;
+  }
+
+  if (!confirm(`Approve ${selectedHours.size} hours entry(ies)?`)) return;
+
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const promises = Array.from(selectedHours).map(id =>
+      updateDoc(doc(db, 'hours', id), {
+        approved: true,
+        approvedBy: currentUser.email,
+        approvedDate: today,
+        updatedAt: new Date().toISOString()
+      })
+    );
+    await Promise.all(promises);
+
+    await logAudit('batch_hours_approved', {
+      count: selectedHours.size,
+      hoursIds: Array.from(selectedHours)
+    });
+
+    selectedHours.clear();
+    renderHoursTable();
+  } catch (error) {
+    console.error('Batch update error:', error);
+    alert('Error updating hours.');
+  }
+};
+
+window.batchMarkHoursPaid = async function() {
+  if (!confirm(`Mark ${selectedHours.size} hours entry(ies) as paid?`)) return;
+
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const promises = Array.from(selectedHours).map(id =>
+      updateDoc(doc(db, 'hours', id), {
+        hoursPaid: true,
+        hoursPaidDate: today,
+        updatedAt: new Date().toISOString()
+      })
+    );
+    await Promise.all(promises);
+
+    await logAudit('batch_hours_paid', {
+      count: selectedHours.size,
+      hoursIds: Array.from(selectedHours)
+    });
+
+    selectedHours.clear();
+    renderHoursTable();
+  } catch (error) {
+    console.error('Batch update error:', error);
+    alert('Error updating hours.');
+  }
+};
+
+// Audit trail rendering
+function renderAuditTrail() {
+  const tbody = document.getElementById('audit-tbody');
+  if (!tbody) return;
+
+  if (auditEntries.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No audit entries</td></tr>';
+    return;
+  }
+
+  // Show last 50 entries
+  const recent = auditEntries.slice(0, 50);
+
+  tbody.innerHTML = recent.map(entry => {
+    const actionLabels = {
+      'invoice_status_change': 'Invoice Status',
+      'commission_status_change': 'Commission Paid',
+      'hours_approval_change': 'Hours Approval',
+      'hours_paid_change': 'Hours Paid',
+      'batch_invoice_paid': 'Batch Invoice Paid',
+      'batch_commission_paid': 'Batch Commission Paid',
+      'batch_hours_approved': 'Batch Hours Approved',
+      'batch_hours_paid': 'Batch Hours Paid',
+      'sale_edited': 'Sale Edited',
+      'sale_deleted': 'Sale Deleted'
+    };
+
+    const label = actionLabels[entry.action] || entry.action;
+    const details = formatAuditDetails(entry.action, entry.details);
+
+    return `
+      <tr>
+        <td>${formatDateTime(entry.timestamp)}</td>
+        <td>${escapeHtml(entry.user)}</td>
+        <td><span class="audit-action">${label}</span></td>
+        <td>${details}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function formatAuditDetails(action, details) {
+  if (!details) return '-';
+
+  switch (action) {
+    case 'invoice_status_change':
+      return `${escapeHtml(details.customer || '')} - ${escapeHtml(details.item || '')}: ${details.oldStatus} → ${details.newStatus}`;
+    case 'commission_status_change':
+      return `${escapeHtml(details.customer || '')} ($${details.commission?.toFixed(2) || '0'}): ${details.oldPaid ? 'Paid' : 'Unpaid'} → ${details.newPaid ? 'Paid' : 'Unpaid'}`;
+    case 'hours_approval_change':
+      return `${details.hours}h (${details.createdBy}): ${details.oldApproved ? 'Approved' : 'Pending'} → ${details.newApproved ? 'Approved' : 'Pending'}`;
+    case 'hours_paid_change':
+      return `$${details.amount?.toFixed(2) || '0'} (${details.createdBy}): ${details.oldPaid ? 'Paid' : 'Unpaid'} → ${details.newPaid ? 'Paid' : 'Unpaid'}`;
+    case 'batch_invoice_paid':
+    case 'batch_commission_paid':
+    case 'batch_hours_approved':
+    case 'batch_hours_paid':
+      return `${details.count} item(s)`;
+    case 'sale_edited':
+      return `${escapeHtml(details.customer || '')} - ${escapeHtml(details.item || '')}`;
+    case 'sale_deleted':
+      return `${escapeHtml(details.customer || '')} - ${escapeHtml(details.item || '')} ($${details.price?.toFixed(2) || '0'})`;
+    default:
+      return JSON.stringify(details).substring(0, 100);
+  }
+}
+
+// Sales edit/delete for sales users
+window.editSale = function(saleId) {
+  const sale = salesEntries.find(s => s.id === saleId);
+  if (!sale) return;
+
+  // Only allow editing own sales
+  if (sale.createdBy !== currentUser?.email && currentRole === 'sales') {
+    alert('You can only edit your own sales.');
+    return;
+  }
+
+  // Populate form with sale data
+  document.getElementById('sale-date').value = sale.date;
+  saleCustomerSelect.value = sale.customer;
+  if (!saleCustomerSelect.value) {
+    saleCustomerSelect.value = '__new__';
+    saleCustomerNewInput.style.display = 'block';
+    saleCustomerNewInput.value = sale.customer;
+  }
+  saleItemSelect.value = sale.item;
+  if (!saleItemSelect.value) {
+    saleItemSelect.value = '__new__';
+    saleItemNewInput.style.display = 'block';
+    saleItemNewInput.value = sale.item;
+  }
+  saleUnitsInput.value = sale.units || 1;
+  saleUnitPriceInput.value = sale.unitPrice || sale.price;
+  saleUnitCostInput.value = sale.unitCost || sale.cost;
+  saleTypeSelect.value = sale.accountType;
+  saleFirstOrderSelect.value = sale.isFirstOrder ? 'yes' : 'no';
+  document.getElementById('invoice-status').value = sale.invoiceStatus;
+  document.getElementById('sale-so').value = sale.salesOrder || '';
+  document.getElementById('sale-po').value = sale.customerPO || '';
+  document.getElementById('sale-notes').value = sale.notes || '';
+
+  updateTotals();
+
+  // Store editing state
+  document.getElementById('sales-form').dataset.editingId = saleId;
+
+  // Switch to sales tab
+  document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelector('.tab[data-tab="sales"]').classList.add('active');
+  document.getElementById('sales-tab').classList.add('active');
+
+  // Scroll to form
+  document.getElementById('sales-tab').scrollIntoView({ behavior: 'smooth' });
+};
+
+window.deleteSale = async function(saleId) {
+  const sale = salesEntries.find(s => s.id === saleId);
+  if (!sale) return;
+
+  // Only allow deleting own sales
+  if (sale.createdBy !== currentUser?.email && currentRole === 'sales') {
+    alert('You can only delete your own sales.');
+    return;
+  }
+
+  if (!confirm(`Delete sale to ${sale.customer} for $${sale.price.toFixed(2)}?`)) return;
+
+  try {
+    await deleteDoc(doc(db, 'sales', saleId));
+
+    await logAudit('sale_deleted', {
+      saleId,
+      customer: sale.customer,
+      item: sale.item,
+      price: sale.price,
+      date: sale.date
+    });
+  } catch (error) {
+    console.error('Error deleting sale:', error);
+    alert('Error deleting sale. Please try again.');
+  }
+};
